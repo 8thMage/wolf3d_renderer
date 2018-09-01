@@ -13,24 +13,18 @@ struct Render_queue
 {
 	MemoryBuffer* queue;
 };
-struct MC_chunk
+struct Ball;
+struct MBall
 {
-	Vec3i position;
-	int current_write_pos=0;
-	Vec3i* poses;
-	umo VB;
-	Vec3 start_bounding_box;
-	Vec3 end_bounding_box;
+	Vec2 position;
+	int radius;
 };
-struct MC_chunk_optimised
+struct Game_data
 {
-	Vec3i position;
-	int current_write_pos=0;
-	Vec3i* poses_dims_f;
-	u8* poses_dims;
-	Vec3 start_bounding_box;
-	Vec3 end_bounding_box;
-	umo VB;
+	MBall* mbs;
+	int mbs_len;
+	Ball* balls;
+	int balls_len;
 };
 
 struct GameMemory
@@ -39,9 +33,7 @@ struct GameMemory
 	MemoryBuffer* temp_buffer;
 	Draw_context draw_context;
 	MemoryBuffer* render_queue;
+	Game_data* game_data;
 	bool paused;
-//	MC_chunk chunk[32*32];
-	MC_chunk_optimised opt_chunk[32*32];
-	MC_chunk_optimised opt_chunk_combined;
 };
 typedef void goGametype (Input*,GameMemory*,read_file_type* read_file);

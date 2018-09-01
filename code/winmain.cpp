@@ -515,10 +515,13 @@ void initOpengl(HWND window)
   glGetUniformLocation=(PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
   glUniform3f=(PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
   glUniform3fv=(PFNGLUNIFORM3FVPROC)wglGetProcAddress("glUniform3fv");
+  glUniform2fv=(PFNGLUNIFORM2FVPROC)wglGetProcAddress("glUniform2fv");
+  glUniform1fv=(PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv");
   glUniform3iv=(PFNGLUNIFORM3IVPROC)wglGetProcAddress("glUniform3iv");
   glUniform3i=(PFNGLUNIFORM3IPROC)wglGetProcAddress("glUniform3i");
   glUniform2f=(PFNGLUNIFORM2FPROC)wglGetProcAddress("glUniform2f");
   glUniform1f=(PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f");
+  glUniform1i=(PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i");
   glGenVertexArrays=(PFNGLGENVERTEXARRAYSPROC)wglGetProcAddress("glGenVertexArrays");
   glBindVertexArray=(PFNGLBINDVERTEXARRAYPROC)wglGetProcAddress("glBindVertexArray");
   glUniformMatrix4fv=(PFNGLUNIFORMMATRIX4FVPROC)wglGetProcAddress("glUniformMatrix4fv");

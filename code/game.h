@@ -14,14 +14,11 @@ struct Render_queue
 	MemoryBuffer* queue;
 };
 struct Ball;
-struct MBall
-{
-	Vec2 position;
-	int radius;
-};
+
 struct Game_data
 {
-	MBall* mbs;
+	Vec2* mbs_pos;
+	float* mbs_rad;
 	int mbs_len;
 	Ball* balls;
 	int balls_len;

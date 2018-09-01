@@ -5,7 +5,8 @@ enum Render_tag
 
 struct RC_MBalls
 {
-	Render_tag* tag;
-	MBall* mballs;
+	Render_tag tag;
+	Vec2* mballs_position;
+	float* mballs_radius;
 	int len;
 };

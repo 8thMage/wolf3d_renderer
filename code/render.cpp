@@ -25,9 +25,12 @@ static PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation;
 static PFNGLUNIFORM3FPROC glUniform3f;
 static PFNGLUNIFORM3IPROC glUniform3i;
 static PFNGLUNIFORM3FVPROC glUniform3fv;
+static PFNGLUNIFORM2FVPROC glUniform2fv;
+static PFNGLUNIFORM1FVPROC glUniform1fv;
 static PFNGLUNIFORM3IVPROC glUniform3iv;
 static PFNGLUNIFORM2FPROC glUniform2f;
 static PFNGLUNIFORM1FPROC glUniform1f;
+static PFNGLUNIFORM1IPROC glUniform1i;
 static PFNGLGENVERTEXARRAYSPROC glGenVertexArrays;
 static PFNGLBINDVERTEXARRAYPROC glBindVertexArray;
 static PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
@@ -81,7 +84,8 @@ GLuint CreateProgram(GLuint* shaders,int count)
 GLenum error;
 
 GLuint MBalls_program;
-
+GLuint MBalls_position;
+GLuint positionBufferObject;
 void render(MemoryBuffer* queue)
 {
 	
@@ -112,6 +116,9 @@ void render(MemoryBuffer* queue)
 		GLuint theProgram= CreateProgram(shader_handles,2);
 		MBalls_program=(umo)theProgram;
 		glUseProgram(theProgram);
+		MBalls_position=glGetUniformLocation(MBalls_program,"MBalls_rad");
+		error = glGetError();
+		Assert(!error);
 	}
 
 	Matrix4 matrix={};
@@ -132,6 +139,41 @@ void render(MemoryBuffer* queue)
 		{
 			case RT_MBalls:
 			{
+				current_read_location+=sizeof(RC_MBalls);
+				RC_MBalls* mballs=(RC_MBalls*)tag;
+				glUseProgram(MBalls_program);
+				int len=mballs->len;
+				GLuint len_pos=glGetUniformLocation(MBalls_program,"len");
+				glUniform1i(len_pos,mballs->len);
+				//for(int i=0;i<len;i++)
+				//{
+					char* radius_str="MBalls_rad[0]";
+					char* position_str="MBalls_pos[0]";
+					error = glGetError();
+					GLuint radius_pos=glGetUniformLocation(MBalls_program,radius_str);
+					GLuint position_pos=glGetUniformLocation(MBalls_program,position_str);
+					glUniform1fv(radius_pos,len,mballs->mballs_radius);
+					error = glGetError();
+					glUniform2fv(position_pos,len,mballs->mballs_position[0].E);
+					error = glGetError();
+
+				//}
+				float vertex_data[]=
+				{
+					-screen_dim.x,2*screen_dim.y,
+					2*screen_dim.x,-screen_dim.y,
+					-screen_dim.x,-screen_dim.y
+				};
+				if(!positionBufferObject)
+				{
+					glGenBuffers(1,&positionBufferObject);
+					glBindBuffer(GL_ARRAY_BUFFER,positionBufferObject);
+					glBufferData(GL_ARRAY_BUFFER,sizeof(vertex_data), vertex_data,GL_STATIC_READ);
+				}
+				glBindBuffer(GL_ARRAY_BUFFER,positionBufferObject);
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
+				glDrawArrays(GL_TRIANGLES,0,3);
 				break;
 			}
 		}

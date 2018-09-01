@@ -1,12 +1,9 @@
 #version 330
-struct MBall
-{
-	vec2 position;
-	float radius;
-};
 
-uniform in MBall MBalls[10];
-flat in int len;
+
+uniform float MBalls_rad[10];
+uniform vec2 MBalls_pos[10];
+uniform int len;
 out vec4 outputColor;
 void main()
 {
@@ -14,9 +11,9 @@ void main()
 	vec2 position=gl_FragCoord.xy;
 	for(int i=0;i<len;i++)
 	{
-		vec2 rel_pos=position-MBalls[i].position;
+		vec2 rel_pos=position-MBalls_pos[i];
 		float rel_dist_sqrd=dot(rel_pos,rel_pos);
-		value+=1/sqrt(rel_dist_sqrd)-1/MBalls[i].radius;
+		value+=1/sqrt(rel_dist_sqrd)-1/MBalls_rad[i];
 	}
 	if(value>0)
 		outputColor=vec4(0,0,1,1);

@@ -97,8 +97,8 @@ void render(MemoryBuffer* queue)
 	glClearColor(0.7,0.7,0.7,1);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFlush();
-	glEnable(GL_DEPTH_TEST);
-	glClearDepth(10000);
+	//glEnable(GL_DEPTH_TEST);
+	//glClearDepth(10000);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	if(!MBalls_program)
 	{
@@ -174,6 +174,18 @@ void render(MemoryBuffer* queue)
 				glEnableVertexAttribArray(0);
 				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
 				glDrawArrays(GL_TRIANGLES,0,3);
+				break;
+			}
+			case RT_Triangle:
+			{
+					current_read_location+=sizeof(RC_Triangle);
+				RC_Triangle* tri=(RC_Triangle*) tag;
+				glBegin(GL_TRIANGLES);
+				glColor4f(1,0,0,1);
+				glVertex2fv(tri->vrts[1].E);
+				glVertex2fv(tri->vrts[0].E);
+				glVertex2fv(tri->vrts[2].E);
+				glEnd();
 				break;
 			}
 		}

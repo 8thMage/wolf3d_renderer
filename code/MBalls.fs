@@ -19,5 +19,7 @@ void main()
 		outputColor=vec4(0,0,1,1);
 	else
 		outputColor=vec4(0,1,0,1);
+	if(value>0.5)
+		outputColor=vec4(1,0,1,1);
 }
 

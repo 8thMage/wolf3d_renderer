@@ -23,6 +23,7 @@ static PFNGLBUFFERDATAPROC glBufferData;
 static PFNGLBUFFERSUBDATAPROC glBufferSubData;
 static PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation;
 static PFNGLUNIFORM3FPROC glUniform3f;
+static PFNGLUNIFORM4FPROC glUniform4f;
 static PFNGLUNIFORM3IPROC glUniform3i;
 static PFNGLUNIFORM3FVPROC glUniform3fv;
 static PFNGLUNIFORM2FVPROC glUniform2fv;
@@ -84,7 +85,7 @@ GLuint CreateProgram(GLuint* shaders,int count)
 GLenum error;
 
 GLuint MBalls_program;
-GLuint MBalls_position;
+GLuint tri_program;
 GLuint positionBufferObject;
 void render(MemoryBuffer* queue)
 {
@@ -116,11 +117,28 @@ void render(MemoryBuffer* queue)
 		GLuint theProgram= CreateProgram(shader_handles,2);
 		MBalls_program=(umo)theProgram;
 		glUseProgram(theProgram);
-		MBalls_position=glGetUniformLocation(MBalls_program,"MBalls_rad");
 		error = glGetError();
 		Assert(!error);
 	}
-
+	if(!tri_program)
+	{
+		char* fs;
+		int fs_length;
+		char* vs;
+		int vs_length;
+		GLuint shader_handles[2];
+		read_file_alloc((u8*)"../code/tri.vs",&vs_length,(void**)&vs);
+		shader_handles[0]=CreateShader(GL_VERTEX_SHADER,vs,vs_length);
+		read_file_alloc((u8*)"../code/tri.fs",&fs_length,(void**)&fs);
+		shader_handles[1]=CreateShader(GL_FRAGMENT_SHADER,fs,fs_length);
+		VirtualFree(fs,0,MEM_RELEASE);
+		VirtualFree(vs,0,MEM_RELEASE);
+		GLuint theProgram= CreateProgram(shader_handles,2);
+		tri_program=(umo)theProgram;
+		glUseProgram(theProgram);
+		error = glGetError();
+		Assert(!error);
+	}
 	Matrix4 matrix={};
 
 	matrix.array[0] = 1.f;
@@ -160,9 +178,9 @@ void render(MemoryBuffer* queue)
 				//}
 				float vertex_data[]=
 				{
-					-screen_dim.x,2*screen_dim.y,
-					2*screen_dim.x,-screen_dim.y,
-					-screen_dim.x,-screen_dim.y
+					-1,-1,
+					4,-1,
+					-1,4
 				};
 				if(!positionBufferObject)
 				{
@@ -183,23 +201,18 @@ void render(MemoryBuffer* queue)
 			{
 				current_read_location+=sizeof(RC_Triangle);
 				RC_Triangle* tri=(RC_Triangle*) tag;
+				glUseProgram(tri_program);
+				GLuint tri_color=glGetUniformLocation(tri_program,"color");
+				glUniform4f(tri_color,1,1,1,1);
 				//glBegin(GL_TRIANGLES);
-				glColor4f(1,1,1,1);
 				//glVertex2fv(tri->vrts[1].E);
 				//glVertex2fv(tri->vrts[0].E);
 				//glVertex2fv(tri->vrts[2].E);
 				GLuint a;
 				glGenBuffers(1,&a);
 				glBindBuffer(GL_ARRAY_BUFFER,a);
-				float vertex_data[]=
-				{
-					//-screen_dim.x,2*screen_dim.y,
-					tri->vrts[0].x,tri->vrts[0].y,
-					2*screen_dim.x,-screen_dim.y,
-					-screen_dim.x,-screen_dim.y
-				};
-				glBufferData(GL_ARRAY_BUFFER,sizeof(tri->vrts[0])*3, vertex_data,GL_STATIC_READ);
-				glBindBuffer(GL_ARRAY_BUFFER,a);
+				glBufferData(GL_ARRAY_BUFFER,sizeof(tri->vrts[0])*3, tri->vrts[0].E,GL_STATIC_READ);
+				//glBindBuffer(GL_ARRAY_BUFFER,a);
 				glEnableVertexAttribArray(0);
 				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
 				glDrawArrays(GL_TRIANGLES,0,3);

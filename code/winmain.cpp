@@ -372,9 +372,9 @@ static void ProccessMessage(MSG* msg, Input* input)
 				input->button_mouse_left.state=state;
 				input->button_mouse_left.changes++;
 
-				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)/dpixf; 
-				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)/dpiyf; 
-				input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
+				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)*1.f; 
+				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)*1.f; 
+			//	input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
 
 			}break;
 		case WM_RBUTTONDOWN:
@@ -384,9 +384,9 @@ static void ProccessMessage(MSG* msg, Input* input)
 				input->button_mouse_right.state=state;
 				input->button_mouse_right.changes++;
 
-				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)/dpixf; 
-				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)/dpiyf; 
-				input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
+				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)*1.f; 
+				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)*1.f; 
+			//	input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
 			}break;
 		case WM_MBUTTONDOWN:
 		case WM_MBUTTONUP:
@@ -395,9 +395,9 @@ static void ProccessMessage(MSG* msg, Input* input)
 				input->button_mouse_middle.state=state;
 				input->button_mouse_middle.changes++;
 
-				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)/dpixf; //NOTE() i think it's wrong;
-				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)/dpiyf; 
-				input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
+				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)*1.f; //NOTE() i think it's wrong;
+				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)*1.f; 
+			//	input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
 			}break;
 			//case WM_
 		case WM_MOUSEWHEEL:
@@ -407,9 +407,9 @@ static void ProccessMessage(MSG* msg, Input* input)
 			}break;
 		case WM_MOUSEMOVE:
 			{
-				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)/dpixf; 
-				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)/dpiyf; 
-				input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
+				input->mouse_pos.x = GET_X_LPARAM(msg->lParam)*1.f; 
+				input->mouse_pos.y= GET_Y_LPARAM(msg->lParam)*1.f; 
+				//input->mouse_pos=turn_mouse_into_logical_units(input->mouse_pos);
 
 			}break;
 		case WM_WINDOWPOSCHANGED:
@@ -514,6 +514,7 @@ void initOpengl(HWND window)
   glBufferSubData=(PFNGLBUFFERSUBDATAPROC)wglGetProcAddress("glBufferSubData");
   glGetUniformLocation=(PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
   glUniform3f=(PFNGLUNIFORM3FPROC)wglGetProcAddress("glUniform3f");
+  glUniform4f=(PFNGLUNIFORM4FPROC)wglGetProcAddress("glUniform4f");
   glUniform3fv=(PFNGLUNIFORM3FVPROC)wglGetProcAddress("glUniform3fv");
   glUniform2fv=(PFNGLUNIFORM2FVPROC)wglGetProcAddress("glUniform2fv");
   glUniform1fv=(PFNGLUNIFORM1FVPROC)wglGetProcAddress("glUniform1fv");
@@ -529,9 +530,9 @@ void initOpengl(HWND window)
   glUniformMatrix3x4fv=(PFNGLUNIFORMMATRIX3X4FVPROC)wglGetProcAddress("glUniformMatrix3x4fv");
   glDrawArraysInstanced=(PFNGLDRAWARRAYSINSTANCEDPROC)wglGetProcAddress("glDrawArraysInstanced");
   
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-  glFrontFace(GL_CW);
+  //glEnable(GL_CULL_FACE);
+  //glCullFace(GL_BACK);
+  //glFrontFace(GL_CW);
 
   
 }

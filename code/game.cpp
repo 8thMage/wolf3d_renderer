@@ -37,24 +37,31 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	{
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
 		game_data=game_memory->game_data;
-		game_data->mbs.len=2;
+		game_data->mbs.len=1;
 		game_data->mbs.rad=push_array(game_memory->const_buffer,float,game_data->mbs.len);
 		game_data->mbs.pos=push_array(game_memory->const_buffer,Vec2,game_data->mbs.len);
 		game_data->mbs.pos[0]={1500,1500};
-		game_data->mbs.rad[0]=300;
-		game_data->mbs.pos[1]={1500,1000};
-		game_data->mbs.rad[1]=300;
-		//game_data->mbs_pos[2]={1000,1000};
-		//game_data->mbs_rad[2]=300;
+		game_data->mbs.rad[0]=500;
+	//	game_data->mbs.pos[1]={1500,1000};
+	//	game_data->mbs.rad[1]=500;
+	//	game_data->mbs.pos[2]={1000,1000};
+	//	game_data->mbs.rad[2]=300;
 		game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,10 MB);
 	}
 	push_mballs_to_render_queue(game_memory->render_queue,game_data->mbs.pos,game_data->mbs.rad,game_data->mbs.len);
 	Vec2 mouse_pos=input->mouse_pos;
-	mouse_pos.y=game_memory->draw_context.screen->height/2-mouse_pos.y;
-	mouse_pos.x=game_memory->draw_context.screen->width/2-mouse_pos.y;
-	Vec2 grad=grad_mballs(game_data->mbs,mouse_pos)*100;
-	grad.x=0;
-	grad.y=0;
-	Vec2 grad_perp=Perp(grad);
-	push_triangle_to_render_queue(game_memory->render_queue,mouse_pos+grad,mouse_pos-grad_perp,mouse_pos+grad_perp);
+	mouse_pos.y=game_memory->draw_context.screen->height-mouse_pos.y;
+	Vec2 grad=grad_mballs(game_data->mbs,mouse_pos)*0.01;
+//	grad.x=0;
+//	grad.y=0;
+	Vec2 grad_perp=Perp(grad)*10;
+	mouse_pos=input->mouse_pos;
+	Vec2 logical_mouse_pos=HaddamardProduct(mouse_pos,vec2f(1.f/game_memory->draw_context.screen->width*2,1.f/game_memory->draw_context.screen->height*2));
+	logical_mouse_pos-=vec2f(1,1);
+	logical_mouse_pos.y=-logical_mouse_pos.y;
+	push_triangle_to_render_queue(game_memory->render_queue,logical_mouse_pos+grad,logical_mouse_pos-grad_perp,logical_mouse_pos+grad_perp);
+	Vec2 logical_mbs_pos=game_data->mbs.pos[0];
+	logical_mbs_pos=HaddamardProduct(logical_mbs_pos,vec2f(1.f/game_memory->draw_context.screen->width*2,1.f/game_memory->draw_context.screen->height*2));
+	logical_mbs_pos-=vec2f(1,1);
+	push_triangle_to_render_queue(game_memory->render_queue,logical_mbs_pos,logical_mouse_pos-grad_perp,logical_mouse_pos+grad_perp);
 }

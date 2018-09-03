@@ -99,7 +99,7 @@ void render(MemoryBuffer* queue)
 	glFlush();
 	//glEnable(GL_DEPTH_TEST);
 	//glClearDepth(10000);
-	glClear(GL_DEPTH_BUFFER_BIT);
+	//glClear(GL_DEPTH_BUFFER_BIT);
 	if(!MBalls_program)
 	{
 		char* fs;
@@ -147,15 +147,15 @@ void render(MemoryBuffer* queue)
 				glUniform1i(len_pos,mballs->len);
 				//for(int i=0;i<len;i++)
 				//{
-					char* radius_str="MBalls_rad[0]";
-					char* position_str="MBalls_pos[0]";
-					error = glGetError();
-					GLuint radius_pos=glGetUniformLocation(MBalls_program,radius_str);
-					GLuint position_pos=glGetUniformLocation(MBalls_program,position_str);
-					glUniform1fv(radius_pos,len,mballs->mballs_radius);
-					error = glGetError();
-					glUniform2fv(position_pos,len,mballs->mballs_position[0].E);
-					error = glGetError();
+				char* radius_str="MBalls_rad[0]";
+				char* position_str="MBalls_pos[0]";
+				error = glGetError();
+				GLuint radius_pos=glGetUniformLocation(MBalls_program,radius_str);
+				GLuint position_pos=glGetUniformLocation(MBalls_program,position_str);
+				glUniform1fv(radius_pos,len,mballs->mballs_radius);
+				error = glGetError();
+				glUniform2fv(position_pos,len,mballs->mballs_position[0].E);
+				error = glGetError();
 
 				//}
 				float vertex_data[]=
@@ -174,18 +174,40 @@ void render(MemoryBuffer* queue)
 				glEnableVertexAttribArray(0);
 				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
 				glDrawArrays(GL_TRIANGLES,0,3);
+
+				glDisableVertexAttribArray(0);
+				glUseProgram(0);
 				break;
 			}
 			case RT_Triangle:
 			{
-					current_read_location+=sizeof(RC_Triangle);
+				current_read_location+=sizeof(RC_Triangle);
 				RC_Triangle* tri=(RC_Triangle*) tag;
-				glBegin(GL_TRIANGLES);
-				glColor4f(1,0,0,1);
-				glVertex2fv(tri->vrts[1].E);
-				glVertex2fv(tri->vrts[0].E);
-				glVertex2fv(tri->vrts[2].E);
-				glEnd();
+				//glBegin(GL_TRIANGLES);
+				glColor4f(1,1,1,1);
+				//glVertex2fv(tri->vrts[1].E);
+				//glVertex2fv(tri->vrts[0].E);
+				//glVertex2fv(tri->vrts[2].E);
+				GLuint a;
+				glGenBuffers(1,&a);
+				glBindBuffer(GL_ARRAY_BUFFER,a);
+				float vertex_data[]=
+				{
+					//-screen_dim.x,2*screen_dim.y,
+					tri->vrts[0].x,tri->vrts[0].y,
+					2*screen_dim.x,-screen_dim.y,
+					-screen_dim.x,-screen_dim.y
+				};
+				glBufferData(GL_ARRAY_BUFFER,sizeof(tri->vrts[0])*3, vertex_data,GL_STATIC_READ);
+				glBindBuffer(GL_ARRAY_BUFFER,a);
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
+				glDrawArrays(GL_TRIANGLES,0,3);
+
+				glDisableVertexAttribArray(0);
+				error = glGetError();
+
+				//glEnd();
 				break;
 			}
 		}

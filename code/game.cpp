@@ -50,8 +50,11 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	}
 	push_mballs_to_render_queue(game_memory->render_queue,game_data->mbs.pos,game_data->mbs.rad,game_data->mbs.len);
 	Vec2 mouse_pos=input->mouse_pos;
-	mouse_pos.y=game_memory->draw_context.screen->height-mouse_pos.y;
+	mouse_pos.y=game_memory->draw_context.screen->height/2-mouse_pos.y;
+	mouse_pos.x=game_memory->draw_context.screen->width/2-mouse_pos.y;
 	Vec2 grad=grad_mballs(game_data->mbs,mouse_pos)*100;
+	grad.x=0;
+	grad.y=0;
 	Vec2 grad_perp=Perp(grad);
-	push_triangle_to_render_queue(game_memory->render_queue,mouse_pos+grad,mouse_pos+grad_perp,mouse_pos-grad_perp);
+	push_triangle_to_render_queue(game_memory->render_queue,mouse_pos+grad,mouse_pos-grad_perp,mouse_pos+grad_perp);
 }

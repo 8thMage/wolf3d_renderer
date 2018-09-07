@@ -1,12 +1,19 @@
 #include "game.h"
 #include "render.h"
-void push_mballs_to_render_queue(MemoryBuffer* render_queue, Vec2* mbs_pos, float* mbs_rad,int mbs_len)
+void push_mballs_to_render_queue(MemoryBuffer* render_queue, MBalls* mbs)
 {
 	RC_MBalls* rc_mbs=push_struct(render_queue,RC_MBalls);
 	rc_mbs->tag=RT_MBalls;
-	rc_mbs->mballs_position=mbs_pos;
-	rc_mbs->mballs_radius=mbs_rad;
-	rc_mbs->len=mbs_len;
+	rc_mbs->mballs_position=mbs->pos;
+	rc_mbs->mballs_radius=mbs->rad;
+	rc_mbs->len=mbs->len;
+}
+void push_balls_to_render_queue(MemoryBuffer* render_queue, Balls* bs)
+{
+	RC_Balls* rc_mbs=push_struct(render_queue,RC_Balls);
+	rc_mbs->tag=RT_Balls;
+	rc_mbs->pos=bs->pos;
+	rc_mbs->len=bs->len;
 }
 void push_triangle_to_render_queue(MemoryBuffer* render_queue, Vec2 vrt1, Vec2 vrt2,Vec2 vrt3)
 {
@@ -16,52 +23,117 @@ void push_triangle_to_render_queue(MemoryBuffer* render_queue, Vec2 vrt1, Vec2 v
 	rc_tri->vrts[1]=vrt2;
 	rc_tri->vrts[2]=vrt3;
 }
-Vec2 grad_mballs(MBalls mbs,Vec2 mouse_pos)
+Vec2 grad_mballs(MBalls* mbs,Vec2 mouse_pos)
 {
 	Vec2 res={};
-	forei(mbs.len)
+	forei(mbs->len)
 	{
-		Vec2 rel_pos=mouse_pos-mbs.pos[i];
+		Vec2 rel_pos=mouse_pos-mbs->pos[i];
 		float rel_dist_sqrd=DotProduct(rel_pos,rel_pos);
 		float recp_rel_dist=1/sqrtf(rel_dist_sqrd);
 		Vec2 adder = rel_pos*recp_rel_dist*recp_rel_dist*recp_rel_dist;
-		res-=adder;
+		res-=adder*mbs->rad[i];
 	}
 	res = Normalize(res);
 	return res;
 }
+float mballs_fun(MBalls* mbs,Vec2 pos)
+{
+	float res=-1;
+	forei(mbs->len)
+	{
+		Vec2 rel_pos=pos-mbs->pos[i];
+		float rel_dist_sqrd=DotProduct(rel_pos,rel_pos);
+		float recp_rel_dist=1/sqrtf(rel_dist_sqrd);
+		res+=recp_rel_dist*mbs->rad[i];
+	}
+	return res;
+}
+Vec2 screen_pos_to_logical_pos(Vec2 input,Vec2 screen_dim)//used for mouse
+{
+	Vec2 ret;
+	float screen_ratio=screen_dim.x/screen_dim.y;
+	ret=HaddamardProduct(input,vec2f(2.f/screen_dim.x,2.f/screen_dim.y));
+	ret-=vec2f(1,1);
+	ret.y=-ret.y;//from -1 to 1 
+	ret.x*=screen_ratio;//from -16/9 to 16/9 and -1 to 1
+	return ret;
+}
+Vec2 logical_coord_to_uniform_coord(Vec2 input,Vec2 screen_dim)//used for mouse
+{
+	float screen_ratio=screen_dim.x/screen_dim.y;
+	Vec2 ret;
+	ret=input;
+	ret.x/=screen_ratio;
+	return ret;
+}
+void balls_logic(Balls* balls,MBalls* mbs)
+{
+	for(int i=0;i<10;i++)
+	{
+		for(int i=0;i<balls->len;i++)
+		{
+			balls->pos[i]+=balls->velocity[i]/10;
+			if(mballs_fun(mbs,balls->pos[i])<0)
+			{
+				Vec2 grad=grad_mballs(mbs,balls->pos[i]);
+				balls->velocity[i]-=2*grad*DotProduct(grad,balls->velocity[i]);
+			}
+		}
+	}
+}
 void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 {
 	Game_data* game_data=game_memory->game_data;
+	Vec2 screen_dim=vec2f((float)game_memory->draw_context.screen->width,(float)game_memory->draw_context.screen->height);
+	Balls* balls;
 	if(!game_data)
 	{
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
+	
 		game_data=game_memory->game_data;
-		game_data->mbs.len=1;
+		game_data->mbs.len=5;
 		game_data->mbs.rad=push_array(game_memory->const_buffer,float,game_data->mbs.len);
 		game_data->mbs.pos=push_array(game_memory->const_buffer,Vec2,game_data->mbs.len);
-		game_data->mbs.pos[0]={1500,1500};
-		game_data->mbs.rad[0]=500;
-	//	game_data->mbs.pos[1]={1500,1000};
-	//	game_data->mbs.rad[1]=500;
-	//	game_data->mbs.pos[2]={1000,1000};
-	//	game_data->mbs.rad[2]=300;
+		game_data->mbs.pos[1]={0,0.5};
+		game_data->mbs.rad[1]=0.1;
+		game_data->mbs.pos[0]={0,-0.5};
+		game_data->mbs.rad[0]=0.2;
+		game_data->mbs.pos[2]={0.5,0.5};
+		game_data->mbs.rad[2]=0.2;
+		game_data->mbs.pos[3]={-0.8,-0.5};
+		game_data->mbs.rad[3]=0.1;
+		game_data->mbs.pos[4]={-0.8,0};
+		game_data->mbs.rad[4]=0.05;
 		game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,10 MB);
+
+		balls=&game_data->balls;
+		balls->len=10000;
+		balls->pos=push_array(game_memory->const_buffer,Vec2,balls->len);
+		balls->velocity=push_array(game_memory->const_buffer,Vec2,balls->len);
+		for(int i=0;i<balls->len;i++)
+		{
+			balls->pos[i]=vec2f(0,i/10000.f-0.5000f);
+			balls->velocity[i]=vec2f(0.01,0);
+		}
 	}
-	push_mballs_to_render_queue(game_memory->render_queue,game_data->mbs.pos,game_data->mbs.rad,game_data->mbs.len);
-	Vec2 mouse_pos=input->mouse_pos;
-	mouse_pos.y=game_memory->draw_context.screen->height-mouse_pos.y;
-	Vec2 grad=grad_mballs(game_data->mbs,mouse_pos)*0.01;
-//	grad.x=0;
-//	grad.y=0;
-	Vec2 grad_perp=Perp(grad)*10;
-	mouse_pos=input->mouse_pos;
-	Vec2 logical_mouse_pos=HaddamardProduct(mouse_pos,vec2f(1.f/game_memory->draw_context.screen->width*2,1.f/game_memory->draw_context.screen->height*2));
-	logical_mouse_pos-=vec2f(1,1);
-	logical_mouse_pos.y=-logical_mouse_pos.y;
-	push_triangle_to_render_queue(game_memory->render_queue,logical_mouse_pos+grad,logical_mouse_pos-grad_perp,logical_mouse_pos+grad_perp);
-	Vec2 logical_mbs_pos=game_data->mbs.pos[0];
-	logical_mbs_pos=HaddamardProduct(logical_mbs_pos,vec2f(1.f/game_memory->draw_context.screen->width*2,1.f/game_memory->draw_context.screen->height*2));
-	logical_mbs_pos-=vec2f(1,1);
-	push_triangle_to_render_queue(game_memory->render_queue,logical_mbs_pos,logical_mouse_pos-grad_perp,logical_mouse_pos+grad_perp);
+	if(game_data)
+	{
+		balls=&game_data->balls;
+
+		push_mballs_to_render_queue(game_memory->render_queue,&game_data->mbs);
+
+		Vec2 mouse_pos=input->mouse_pos;
+		Vec2 logical_mouse_pos=screen_pos_to_logical_pos(mouse_pos,screen_dim);
+
+		Vec2 grad=grad_mballs(&game_data->mbs,logical_mouse_pos)*0.01;
+		Vec2 grad_perp=Perp(grad)*10;
+		Vec2 uniform_mouse_pos=logical_coord_to_uniform_coord(logical_mouse_pos,screen_dim);
+		Vec2 uniform_grad_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim);
+		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim);
+		//	push_triangle_to_render_queue(game_memory->render_queue,uniform_mouse_pos+uniform_grad*10,uniform_mouse_pos-uniform_grad_perp,uniform_mouse_pos+uniform_grad_perp);
+
+		balls_logic(balls,&game_data->mbs);
+		push_balls_to_render_queue(game_memory->render_queue,balls);
+	}
 }

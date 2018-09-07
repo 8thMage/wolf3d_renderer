@@ -85,11 +85,10 @@ GLuint CreateProgram(GLuint* shaders,int count)
 GLenum error;
 
 GLuint MBalls_program;
-GLuint tri_program;
 GLuint positionBufferObject;
 void render(MemoryBuffer* queue)
 {
-	
+	if(!queue) return;
 	Vec2 screen_dim=get_dimensions(window_rect)	;
 	glViewport(0,0,(int)screen_dim.x,(int)screen_dim.y);
 	glEnable(GL_BLEND);
@@ -120,25 +119,6 @@ void render(MemoryBuffer* queue)
 		error = glGetError();
 		Assert(!error);
 	}
-	if(!tri_program)
-	{
-		char* fs;
-		int fs_length;
-		char* vs;
-		int vs_length;
-		GLuint shader_handles[2];
-		read_file_alloc((u8*)"../code/tri.vs",&vs_length,(void**)&vs);
-		shader_handles[0]=CreateShader(GL_VERTEX_SHADER,vs,vs_length);
-		read_file_alloc((u8*)"../code/tri.fs",&fs_length,(void**)&fs);
-		shader_handles[1]=CreateShader(GL_FRAGMENT_SHADER,fs,fs_length);
-		VirtualFree(fs,0,MEM_RELEASE);
-		VirtualFree(vs,0,MEM_RELEASE);
-		GLuint theProgram= CreateProgram(shader_handles,2);
-		tri_program=(umo)theProgram;
-		glUseProgram(theProgram);
-		error = glGetError();
-		Assert(!error);
-	}
 	Matrix4 matrix={};
 
 	matrix.array[0] = 1.f;
@@ -163,18 +143,14 @@ void render(MemoryBuffer* queue)
 				int len=mballs->len;
 				GLuint len_pos=glGetUniformLocation(MBalls_program,"len");
 				glUniform1i(len_pos,mballs->len);
-				//for(int i=0;i<len;i++)
-				//{
-				char* radius_str="MBalls_rad[0]";
-				char* position_str="MBalls_pos[0]";
-				error = glGetError();
-				GLuint radius_pos=glGetUniformLocation(MBalls_program,radius_str);
-				GLuint position_pos=glGetUniformLocation(MBalls_program,position_str);
+				GLuint radius_pos=glGetUniformLocation(MBalls_program,"MBalls_rad[0]");
+				GLuint position_pos=glGetUniformLocation(MBalls_program,"MBalls_pos[0]");
 				glUniform1fv(radius_pos,len,mballs->mballs_radius);
 				error = glGetError();
 				glUniform2fv(position_pos,len,mballs->mballs_position[0].E);
 				error = glGetError();
-
+				GLuint screen_dim_pos=glGetUniformLocation(MBalls_program,"screen_dim");
+				glUniform2fv(screen_dim_pos,1,screen_dim.E);
 				//}
 				float vertex_data[]=
 				{
@@ -201,28 +177,32 @@ void render(MemoryBuffer* queue)
 			{
 				current_read_location+=sizeof(RC_Triangle);
 				RC_Triangle* tri=(RC_Triangle*) tag;
-				glUseProgram(tri_program);
-				GLuint tri_color=glGetUniformLocation(tri_program,"color");
-				glUniform4f(tri_color,1,1,1,1);
-				//glBegin(GL_TRIANGLES);
-				//glVertex2fv(tri->vrts[1].E);
-				//glVertex2fv(tri->vrts[0].E);
-				//glVertex2fv(tri->vrts[2].E);
-				GLuint a;
-				glGenBuffers(1,&a);
-				glBindBuffer(GL_ARRAY_BUFFER,a);
-				glBufferData(GL_ARRAY_BUFFER,sizeof(tri->vrts[0])*3, tri->vrts[0].E,GL_STATIC_READ);
-				//glBindBuffer(GL_ARRAY_BUFFER,a);
-				glEnableVertexAttribArray(0);
-				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
-				glDrawArrays(GL_TRIANGLES,0,3);
-
-				glDisableVertexAttribArray(0);
-				error = glGetError();
-
-				//glEnd();
+				glBegin(GL_TRIANGLES);
+				glColor4f(1,1,1,1);
+				glVertex2fv(tri->vrts[1].E);
+				glVertex2fv(tri->vrts[0].E);
+				glVertex2fv(tri->vrts[2].E);
+				glEnd();
 				break;
 			}
+			case RT_Balls:
+			{
+				current_read_location+=sizeof(RC_Balls);
+				RC_Balls* balls=(RC_Balls*) tag;
+				glEnable(GL_PROGRAM_POINT_SIZE);
+				glPointSize(5);
+				glBegin(GL_POINTS);
+				glColor4f(1,1,1,1);
+				float screen_ratio=screen_dim.x/screen_dim.y;
+				for(int i=0;i<balls->len;i++)
+				{
+					glVertex2f(balls->pos[i].x/screen_ratio,balls->pos[i].y);
+				}
+				glEnd();
+
+				break;
+			}
+
 		}
 	}
 	queue->place=queue->original_start;

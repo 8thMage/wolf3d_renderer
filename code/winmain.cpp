@@ -319,6 +319,11 @@ static void ProccessMessage(MSG* msg, Input* input)
 					input->button_b.state=state;
 					input->button_b.changes++;
 				}
+				if(msg->wParam=='P')
+				{
+					input->button_p.state=state;
+					input->button_p.changes++;
+				}
 				if(msg->wParam==VK_TAB)
 				{
 					input->button_tab.state=state;

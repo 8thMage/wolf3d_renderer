@@ -78,7 +78,7 @@ Vec2 logical_coord_to_uniform_coord(Vec2 input,Vec2 screen_dim)//used for mouse
 	return ret;
 }
 
-//bool balls_collided(Balls* balls,int i,MBalls* mbs,MemoryBuffer* render_queue,Vec2 collision)
+//bool balls_collided(Balls* balls,int i,MBalls* mbs,MemoryBuffer* render_queue,Vec2* collision)
 bool balls_collided(Balls* balls,int i,MBalls* mbs,Vec2* collision)
 {
 	bool early_out=false;
@@ -93,24 +93,32 @@ bool balls_collided(Balls* balls,int i,MBalls* mbs,Vec2* collision)
 	}
 	if(early_out) return false;
 	Vec2 iter=balls->pos[i];
-	while(Norm2(iter-balls->pos[i])<balls->radius*balls->radius)
+	float previus_f=-1000;
+	while(true)
 	{
-		if(mballs_fun(mbs,iter)<0)
+		float f=mballs_fun(mbs,iter);
+		if(fabs(f-previus_f)<1E-4)
 		{
-			*collision=iter;
-			return true;
+			break;
 		}
 		Vec2 grad=Normalize(grad_mballs(mbs,iter));
-		iter-=grad*0.001;
-
+		iter-=grad*0.1*balls->radius;
+		iter=balls->pos[i]-balls->radius*Normalize(balls->pos[i]-iter);
 		//debugging this
 		Vec2 grad_perp=Perp(grad);
 		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim_)*0.01;
 		Vec2 uniform_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim_)*0.01;
 		Vec2 uniform_iter=logical_coord_to_uniform_coord(iter,screen_dim_);
-//		push_triangle_to_render_queue(render_queue,uniform_iter+uniform_grad,uniform_iter+uniform_perp,uniform_iter-uniform_perp);
+		//push_triangle_to_render_queue(render_queue,uniform_iter+uniform_grad,uniform_iter+uniform_perp,uniform_iter-uniform_perp);
 
+		previus_f=f;
 	}
+	if(mballs_fun(mbs,iter)<0)
+	{
+		*collision=iter;
+		return true;
+	}
+
 	return false;
 }
 void dust_logic(Balls* balls,MBalls* mbs)
@@ -132,9 +140,10 @@ void dust_logic(Balls* balls,MBalls* mbs)
 void balls_logic(Balls* balls,MBalls* mbs)
 {
 	Vec2 collision={};
-	int iterations=10;
+	int iterations=100;
 	for(int k=0;k<iterations;k++)
 	{
+//#pragma omp parallel for
 		for(int i=0;i<balls->len;i++)
 		{
 			balls->pos[i]+=balls->velocity[i]/(float)iterations;
@@ -208,5 +217,6 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 
 //		balls->pos[0]=logical_mouse_pos;
 		push_balls_to_render_queue(game_memory->render_queue,balls);
+//		balls_collided(balls,0,&game_data->mbs,game_memory->render_queue,&logical_mouse_pos);
 	}
 }

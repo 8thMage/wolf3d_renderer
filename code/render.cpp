@@ -85,6 +85,7 @@ GLuint CreateProgram(GLuint* shaders,int count)
 GLenum error;
 
 GLuint MBalls_program;
+GLuint Ball_program;
 GLuint positionBufferObject;
 void render(MemoryBuffer* queue)
 {
@@ -119,6 +120,25 @@ void render(MemoryBuffer* queue)
 		error = glGetError();
 		Assert(!error);
 	}
+	if(!Ball_program)
+	{
+		char* fs;
+		int fs_length;
+		char* vs;
+		int vs_length;
+		GLuint shader_handles[2];
+		read_file_alloc((u8*)"../code/tri.vs",&vs_length,(void**)&vs);
+		shader_handles[0]=CreateShader(GL_VERTEX_SHADER,vs,vs_length);
+		read_file_alloc((u8*)"../code/circle.fs",&fs_length,(void**)&fs);
+		shader_handles[1]=CreateShader(GL_FRAGMENT_SHADER,fs,fs_length);
+		VirtualFree(fs,0,MEM_RELEASE);
+		VirtualFree(vs,0,MEM_RELEASE);
+		GLuint theProgram= CreateProgram(shader_handles,2);
+		Ball_program=(umo)theProgram;
+		error = glGetError();
+		Assert(!error);
+	}
+	
 	Matrix4 matrix={};
 
 	matrix.array[0] = 1.f;
@@ -162,12 +182,12 @@ void render(MemoryBuffer* queue)
 				{
 					glGenBuffers(1,&positionBufferObject);
 					glBindBuffer(GL_ARRAY_BUFFER,positionBufferObject);
-					glBufferData(GL_ARRAY_BUFFER,sizeof(vertex_data), vertex_data,GL_STATIC_READ);
 				}
+				glBufferData(GL_ARRAY_BUFFER,sizeof(vertex_data), vertex_data,GL_STREAM_DRAW);
 				glBindBuffer(GL_ARRAY_BUFFER,positionBufferObject);
 				glEnableVertexAttribArray(0);
 				glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
-				glDrawArrays(GL_TRIANGLES,0,3);
+				glDrawArrays(GL_TRIANGLES,0,4);
 
 				glDisableVertexAttribArray(0);
 				glUseProgram(0);
@@ -189,19 +209,65 @@ void render(MemoryBuffer* queue)
 			{
 				current_read_location+=sizeof(RC_Balls);
 				RC_Balls* balls=(RC_Balls*) tag;
+				glUseProgram(Ball_program);
+				int len=balls->len;
+			
+				float screen_ratio=screen_dim.y/screen_dim.x;
+				GLuint rad_pos=glGetUniformLocation(Ball_program,"radius");
+				float radius=balls->radius;
+				glUniform1f(rad_pos,radius);
+				GLuint screen_dim_pos=glGetUniformLocation(Ball_program,"screen_dim");
+				glUniform2fv(screen_dim_pos,1,screen_dim.E);
+				GLuint color_pos=glGetUniformLocation(Ball_program,"color");
+				glUniform4f(color_pos,1,0,0,1);
+				for(int i=0;i<len;i++)
+				{
+					GLuint center_pos=glGetUniformLocation(Ball_program,"center");
+					Vec2 center=balls->pos[i];
+					glUniform2fv(center_pos,1,center.E);
+
+					Rect rect=make_rect_from_center_half_width_height(center,radius,radius);
+					
+					float vertex_data[]=
+					{
+						rect.start.x,rect.start.y,
+						rect.end.x,rect.start.y,
+						rect.start.x,rect.end.y,
+						rect.end.x,rect.end.y,
+					};
+
+					if(!positionBufferObject)
+					{
+						glGenBuffers(1,&positionBufferObject);
+						glBindBuffer(GL_ARRAY_BUFFER,positionBufferObject);
+					}
+					glBufferData(GL_ARRAY_BUFFER,sizeof(vertex_data), vertex_data,GL_STREAM_DRAW);
+					glEnableVertexAttribArray(0);
+					glVertexAttribPointer(0,2,GL_FLOAT, GL_FALSE, 0,0);
+					glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+					glDisableVertexAttribArray(0);
+
+				}
+				glUseProgram(0);
+				break;
+			}
+			case RT_Dust:
+			{
+				current_read_location+=sizeof(RC_Dust);
+				RC_Dust* balls=(RC_Dust*) tag;
 				glEnable(GL_PROGRAM_POINT_SIZE);
 				glPointSize(5);
 				glBegin(GL_POINTS);
 				glColor4f(1,1,1,1);
-				float screen_ratio=screen_dim.x/screen_dim.y;
+				float screen_ratio=screen_dim.y/screen_dim.x;
 				for(int i=0;i<balls->len;i++)
 				{
-					glVertex2f(balls->pos[i].x/screen_ratio,balls->pos[i].y);
+					glVertex2f(balls->pos[i].x*screen_ratio,balls->pos[i].y);
 				}
 				glEnd();
-
 				break;
 			}
+
 
 		}
 	}

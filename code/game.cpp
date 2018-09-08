@@ -1,5 +1,6 @@
 #include "game.h"
 #include "render.h"
+Vec2 screen_dim_;
 void push_mballs_to_render_queue(MemoryBuffer* render_queue, MBalls* mbs)
 {
 	RC_MBalls* rc_mbs=push_struct(render_queue,RC_MBalls);
@@ -10,10 +11,18 @@ void push_mballs_to_render_queue(MemoryBuffer* render_queue, MBalls* mbs)
 }
 void push_balls_to_render_queue(MemoryBuffer* render_queue, Balls* bs)
 {
-	RC_Balls* rc_mbs=push_struct(render_queue,RC_Balls);
-	rc_mbs->tag=RT_Balls;
-	rc_mbs->pos=bs->pos;
-	rc_mbs->len=bs->len;
+	RC_Balls* rc_bs=push_struct(render_queue,RC_Balls);
+	rc_bs->tag=RT_Balls;
+	rc_bs->pos=bs->pos;
+	rc_bs->len=bs->len;
+	rc_bs->radius=bs->radius;
+}
+void push_dust_to_render_queue(MemoryBuffer* render_queue, Balls* bs)
+{
+	RC_Dust* rc_dust=push_struct(render_queue,RC_Dust);
+	rc_dust->tag=RT_Dust;
+	rc_dust->pos=bs->pos;
+	rc_dust->len=bs->len;
 }
 void push_triangle_to_render_queue(MemoryBuffer* render_queue, Vec2 vrt1, Vec2 vrt2,Vec2 vrt3)
 {
@@ -34,7 +43,6 @@ Vec2 grad_mballs(MBalls* mbs,Vec2 mouse_pos)
 		Vec2 adder = rel_pos*recp_rel_dist*recp_rel_dist*recp_rel_dist;
 		res-=adder*mbs->rad[i];
 	}
-	res = Normalize(res);
 	return res;
 }
 float mballs_fun(MBalls* mbs,Vec2 pos)
@@ -43,8 +51,10 @@ float mballs_fun(MBalls* mbs,Vec2 pos)
 	forei(mbs->len)
 	{
 		Vec2 rel_pos=pos-mbs->pos[i];
-		float rel_dist_sqrd=DotProduct(rel_pos,rel_pos);
-		float recp_rel_dist=1/sqrtf(rel_dist_sqrd);
+		float rel_dist_sqrd=rel_pos.x*rel_pos.x+rel_pos.y*rel_pos.y;
+		//float rel_dist_sqrd=DotProduct(rel_pos,rel_pos);
+		__m128 rel_dist_sqrd_vec=_mm_set_ss(rel_dist_sqrd);
+		float recp_rel_dist=_mm_cvtss_f32(_mm_rsqrt_ss(rel_dist_sqrd_vec));
 		res+=recp_rel_dist*mbs->rad[i];
 	}
 	return res;
@@ -67,17 +77,73 @@ Vec2 logical_coord_to_uniform_coord(Vec2 input,Vec2 screen_dim)//used for mouse
 	ret.x/=screen_ratio;
 	return ret;
 }
-void balls_logic(Balls* balls,MBalls* mbs)
+
+//bool balls_collided(Balls* balls,int i,MBalls* mbs,MemoryBuffer* render_queue,Vec2 collision)
+bool balls_collided(Balls* balls,int i,MBalls* mbs,Vec2* collision)
 {
-	for(int i=0;i<10;i++)
+	bool early_out=false;
+	bool collided=false;
+	forej(mbs->len)
+	{
+		if(Norm2(balls->pos[i]-mbs->pos[i])<balls->radius*balls->radius)
+		{
+			early_out=true;
+			break;
+		}
+	}
+	if(early_out) return false;
+	Vec2 iter=balls->pos[i];
+	while(Norm2(iter-balls->pos[i])<balls->radius*balls->radius)
+	{
+		if(mballs_fun(mbs,iter)<0)
+		{
+			*collision=iter;
+			return true;
+		}
+		Vec2 grad=Normalize(grad_mballs(mbs,iter));
+		iter-=grad*0.001;
+
+		//debugging this
+		Vec2 grad_perp=Perp(grad);
+		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim_)*0.01;
+		Vec2 uniform_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim_)*0.01;
+		Vec2 uniform_iter=logical_coord_to_uniform_coord(iter,screen_dim_);
+//		push_triangle_to_render_queue(render_queue,uniform_iter+uniform_grad,uniform_iter+uniform_perp,uniform_iter-uniform_perp);
+
+	}
+	return false;
+}
+void dust_logic(Balls* balls,MBalls* mbs)
+{
+	Vec2 collision={};
+	for(int k=0;k<10;k++)
 	{
 		for(int i=0;i<balls->len;i++)
 		{
 			balls->pos[i]+=balls->velocity[i]/10;
 			if(mballs_fun(mbs,balls->pos[i])<0)
 			{
-				Vec2 grad=grad_mballs(mbs,balls->pos[i]);
+				Vec2 grad=Normalize(grad_mballs(mbs,balls->pos[i]));
 				balls->velocity[i]-=2*grad*DotProduct(grad,balls->velocity[i]);
+			}
+		}
+	}
+}
+void balls_logic(Balls* balls,MBalls* mbs)
+{
+	Vec2 collision={};
+	int iterations=10;
+	for(int k=0;k<iterations;k++)
+	{
+		for(int i=0;i<balls->len;i++)
+		{
+			balls->pos[i]+=balls->velocity[i]/(float)iterations;
+			if(balls_collided(balls,i,mbs,&collision))
+			{
+				Vec2 grad=Normalize(grad_mballs(mbs,collision));
+				float dot_prod=DotProduct(grad,balls->velocity[i]);
+				if(dot_prod<0)
+					balls->velocity[i]-=2*grad*dot_prod;
 			}
 		}
 	}
@@ -85,9 +151,9 @@ void balls_logic(Balls* balls,MBalls* mbs)
 void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 {
 	Game_data* game_data=game_memory->game_data;
-	Vec2 screen_dim=vec2f((float)game_memory->draw_context.screen->width,(float)game_memory->draw_context.screen->height);
+	screen_dim_=vec2f((float)game_memory->draw_context.screen->width,(float)game_memory->draw_context.screen->height);
 	Balls* balls;
-	if(!game_data)
+	if(!game_data&&input->button_p.state)
 	{
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
 	
@@ -108,14 +174,17 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,10 MB);
 
 		balls=&game_data->balls;
-		balls->len=10000;
+		balls->len=100;
 		balls->pos=push_array(game_memory->const_buffer,Vec2,balls->len);
 		balls->velocity=push_array(game_memory->const_buffer,Vec2,balls->len);
 		for(int i=0;i<balls->len;i++)
 		{
-			balls->pos[i]=vec2f(0,i/10000.f-0.5000f);
+			balls->pos[i]=vec2f(0,i/1000.f-0.5000f);
 			balls->velocity[i]=vec2f(0.01,0);
+//			balls->velocity[i]=vec2f(0.0,0);
+			//balls->pos[i]=vec2f(-0.5,-0.5);
 		}
+		balls->radius=0.03;
 	}
 	if(game_data)
 	{
@@ -124,16 +193,20 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		push_mballs_to_render_queue(game_memory->render_queue,&game_data->mbs);
 
 		Vec2 mouse_pos=input->mouse_pos;
-		Vec2 logical_mouse_pos=screen_pos_to_logical_pos(mouse_pos,screen_dim);
+		Vec2 logical_mouse_pos=screen_pos_to_logical_pos(mouse_pos,screen_dim_);
 
-		Vec2 grad=grad_mballs(&game_data->mbs,logical_mouse_pos)*0.01;
+		Vec2 grad=Normalize(grad_mballs(&game_data->mbs,logical_mouse_pos))*0.01;
+
 		Vec2 grad_perp=Perp(grad)*10;
-		Vec2 uniform_mouse_pos=logical_coord_to_uniform_coord(logical_mouse_pos,screen_dim);
-		Vec2 uniform_grad_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim);
-		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim);
+		Vec2 uniform_mouse_pos=logical_coord_to_uniform_coord(logical_mouse_pos,screen_dim_);
+		Vec2 uniform_grad_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim_);
+		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim_);
 		//	push_triangle_to_render_queue(game_memory->render_queue,uniform_mouse_pos+uniform_grad*10,uniform_mouse_pos-uniform_grad_perp,uniform_mouse_pos+uniform_grad_perp);
 
 		balls_logic(balls,&game_data->mbs);
+//		push_dust_to_render_queue(game_memory->render_queue,balls);
+
+//		balls->pos[0]=logical_mouse_pos;
 		push_balls_to_render_queue(game_memory->render_queue,balls);
 	}
 }

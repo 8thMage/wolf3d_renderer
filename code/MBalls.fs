@@ -9,9 +9,7 @@ out vec4 outputColor;
 void main()
 {
 	float value=-1.;
-	vec2 position=gl_FragCoord.xy;
-	position.y=(-screen_dim.y+position.y*2)/screen_dim.y;
-	position.x=(-screen_dim.x+position.x*2)/screen_dim.y;
+	vec2 position=(gl_FragCoord.xy*2-screen_dim)/screen_dim.y;
 	for(int i=0;i<len;i++)
 	{
 		vec2 rel_pos=position-MBalls_pos[i];

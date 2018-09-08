@@ -285,6 +285,12 @@ static float Norm2(Vec2 a)
 	float Res=a.x*a.x+a.y*a.y;
 	return Res;
 }
+static float Norm(Vec2 a)
+{
+	float Res=sqrtf(a.x*a.x+a.y*a.y);
+	return Res;
+}
+
 
 static Vec2 Perp(Vec2 a)
 {

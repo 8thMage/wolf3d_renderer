@@ -25,6 +25,7 @@ struct Balls
 	Vec2* pos;
 	Vec2* velocity;
 	int len;
+	float radius;
 };
 struct Game_data
 {

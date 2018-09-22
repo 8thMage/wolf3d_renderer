@@ -260,6 +260,11 @@ static void ProccessMessage(MSG* msg, Input* input)
 					input->button_s.state=state;
 					input->button_s.changes++;
 				}
+				if(msg->wParam=='Z')
+				{
+					input->button_z.state=state;
+					input->button_z.changes++;
+				}
 				if(msg->wParam=='A')
 				{
 					input->button_a.state=state;

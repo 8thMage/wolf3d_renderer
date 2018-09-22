@@ -18,6 +18,7 @@ struct MBalls
 	Vec2* pos;
 	float* rad;
 	int len;
+	int capacity;
 };
 
 struct Balls
@@ -27,10 +28,17 @@ struct Balls
 	int len;
 	float radius;
 };
+struct Mbs_addition_context
+{
+	bool mouse_down;
+	bool keep_down;
+	Vec2 start_pos;
+};
 struct Game_data
 {
 	MBalls mbs;
 	Balls balls;
+	Mbs_addition_context mbs_add_con;
 };
 
 struct GameMemory

@@ -1,5 +1,6 @@
 #include "game.h"
 #include "render.h"
+#include "stdio.h"
 Vec2 screen_dim_;
 void push_mballs_to_render_queue(MemoryBuffer* render_queue, MBalls* mbs)
 {
@@ -93,11 +94,12 @@ bool balls_collided(Balls* balls,int i,MBalls* mbs,Vec2* collision)
 	}
 	if(early_out) return false;
 	Vec2 iter=balls->pos[i];
-	float previus_f=-1000;
+	float previus_f_1=-1000;
+	float previus_f_2=-1000;
 	while(true)
 	{
 		float f=mballs_fun(mbs,iter);
-		if(fabs(f-previus_f)<1E-4)
+		if(fabs(f-previus_f_2)<1E-5)
 		{
 			break;
 		}
@@ -110,8 +112,8 @@ bool balls_collided(Balls* balls,int i,MBalls* mbs,Vec2* collision)
 		Vec2 uniform_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim_)*0.01;
 		Vec2 uniform_iter=logical_coord_to_uniform_coord(iter,screen_dim_);
 		//push_triangle_to_render_queue(render_queue,uniform_iter+uniform_grad,uniform_iter+uniform_perp,uniform_iter-uniform_perp);
-
-		previus_f=f;
+		previus_f_2=previus_f_1;
+		previus_f_1=f;
 	}
 	if(mballs_fun(mbs,iter)<0)
 	{
@@ -139,6 +141,7 @@ void dust_logic(Balls* balls,MBalls* mbs)
 }
 void balls_logic(Balls* balls,MBalls* mbs)
 {
+	float viscosity=0.000001;
 	Vec2 collision={};
 	int iterations=100;
 	for(int k=0;k<iterations;k++)
@@ -147,6 +150,7 @@ void balls_logic(Balls* balls,MBalls* mbs)
 		for(int i=0;i<balls->len;i++)
 		{
 			balls->pos[i]+=balls->velocity[i]/(float)iterations;
+			balls->velocity[i]-=viscosity*balls->velocity[i];
 			if(balls_collided(balls,i,mbs,&collision))
 			{
 				Vec2 grad=Normalize(grad_mballs(mbs,collision));
@@ -155,8 +159,88 @@ void balls_logic(Balls* balls,MBalls* mbs)
 					balls->velocity[i]-=2*grad*dot_prod;
 			}
 		}
+		for(int i=0;i<balls->len;i++)
+		{
+			for(int j=i+1;j<balls->len;j++)
+			{
+				Vec2 rel_pos=balls->pos[i]-balls->pos[j];
+				if(Norm2(rel_pos)<4*balls->radius*balls->radius)
+				{
+					Vec2 rel_vel=balls->velocity[i]-balls->velocity[j];
+					if(DotProduct(rel_vel,rel_pos)<0)
+					{
+						float minus_rel_pos_norm2=-Norm2(rel_pos);
+						Vec2 adder=rel_pos*DotProduct(rel_vel,rel_pos)/minus_rel_pos_norm2;
+						balls->velocity[i]+=adder;
+						balls->velocity[j]-=adder;
+					}
+				}
+			}
+		}
 	}
 }
+bool was_pressed(ButtonInfo button)
+{
+	bool res=((button.state==true&&button.changes==1)||(button.changes>1));
+	return res;
+}
+bool was_released(ButtonInfo button)
+{
+	bool res=((button.state==false&&button.changes==1)||(button.changes>1));
+
+	return res;
+}
+void handle_mouse_addition_mball(Input* input,MBalls* mbs,Mbs_addition_context* mbs_add_con)
+{
+	if(mbs_add_con->mouse_down)
+	{
+		Vec2 rel_pos=input->logical_mouse_pos-mbs_add_con->start_pos;
+		float radius=Norm(rel_pos);
+		mbs->rad[mbs->len-1]=radius;
+	}
+	if(input->button_mouse_left.state==false||input->button_mouse_left.changes>1)
+	{
+		if(mbs_add_con->mouse_down)
+		{
+			mbs_add_con->mouse_down=false;
+		}
+		mbs_add_con->keep_down=false;
+	}
+	if(input->button_mouse_left.state==true||input->button_mouse_left.changes>1)
+	{
+		if(!mbs_add_con->mouse_down&&!mbs_add_con->keep_down)
+		{
+			if(mbs->capacity>mbs->len)
+			{
+				mbs_add_con->mouse_down=true;
+				mbs_add_con->start_pos=input->logical_mouse_pos;
+				mbs->len=mbs->len+1;
+				mbs->rad[mbs->len-1]=0;
+				mbs->pos[mbs->len-1]=mbs_add_con->start_pos;
+			}
+		}
+	}
+	if(was_released(input->button_esc))
+	{
+		if(mbs_add_con->mouse_down)
+		{
+			mbs_add_con->mouse_down=false;
+			mbs_add_con->keep_down=true;
+			if(mbs->len>0)
+				mbs->len--;
+		}
+	}
+	if(was_released(input->button_z))
+	{
+		if(!mbs_add_con->mouse_down)
+		{
+			if(mbs->len>0)
+				mbs->len--;
+		}
+
+	}
+}
+
 void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 {
 	Game_data* game_data=game_memory->game_data;
@@ -167,9 +251,10 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
 	
 		game_data=game_memory->game_data;
-		game_data->mbs.len=5;
-		game_data->mbs.rad=push_array(game_memory->const_buffer,float,game_data->mbs.len);
-		game_data->mbs.pos=push_array(game_memory->const_buffer,Vec2,game_data->mbs.len);
+		game_data->mbs.len=1;
+		game_data->mbs.capacity=10;
+		game_data->mbs.rad=push_array(game_memory->const_buffer,float,game_data->mbs.capacity);
+		game_data->mbs.pos=push_array(game_memory->const_buffer,Vec2,game_data->mbs.capacity);
 		game_data->mbs.pos[1]={0,0.5};
 		game_data->mbs.rad[1]=0.1;
 		game_data->mbs.pos[0]={0,-0.5};
@@ -180,10 +265,16 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_data->mbs.rad[3]=0.1;
 		game_data->mbs.pos[4]={-0.8,0};
 		game_data->mbs.rad[4]=0.05;
+		
+		/*game_data->mbs.pos[1]={0,0.5};
+		game_data->mbs.rad[1]=0.25016;
+		game_data->mbs.pos[0]={0,-0.5};
+		game_data->mbs.rad[0]=0.25016;*/
+
 		game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,10 MB);
 
 		balls=&game_data->balls;
-		balls->len=100;
+		balls->len=40;
 		balls->pos=push_array(game_memory->const_buffer,Vec2,balls->len);
 		balls->velocity=push_array(game_memory->const_buffer,Vec2,balls->len);
 		for(int i=0;i<balls->len;i++)
@@ -193,16 +284,23 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 //			balls->velocity[i]=vec2f(0.0,0);
 			//balls->pos[i]=vec2f(-0.5,-0.5);
 		}
+	//	balls->velocity[0]=vec2f(0,0);
+	//	balls->velocity[1]=vec2f(0.01,0);
+	//	balls->pos[0]={0,-0.515};
+	//	balls->pos[1]={-0.5,-0.5};
 		balls->radius=0.03;
 	}
 	if(game_data)
 	{
+		Vec2 mouse_pos=input->mouse_pos;
+		Vec2 logical_mouse_pos=screen_pos_to_logical_pos(mouse_pos,screen_dim_);
+		input->logical_mouse_pos=logical_mouse_pos;
+
 		balls=&game_data->balls;
+		handle_mouse_addition_mball(input,&game_data->mbs,&game_data->mbs_add_con);
 
 		push_mballs_to_render_queue(game_memory->render_queue,&game_data->mbs);
 
-		Vec2 mouse_pos=input->mouse_pos;
-		Vec2 logical_mouse_pos=screen_pos_to_logical_pos(mouse_pos,screen_dim_);
 
 		Vec2 grad=Normalize(grad_mballs(&game_data->mbs,logical_mouse_pos))*0.01;
 
@@ -218,5 +316,14 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 //		balls->pos[0]=logical_mouse_pos;
 		push_balls_to_render_queue(game_memory->render_queue,balls);
 //		balls_collided(balls,0,&game_data->mbs,game_memory->render_queue,&logical_mouse_pos);
+
+	/*	float energy=0;
+		for(int i=0;i<balls->len;i++)
+		{
+			energy+=Norm2(balls->velocity[i]);
+		}
+		char arr[100];
+		snprintf(arr,100,"energy is %g\n",energy);
+		OutputDebugString(arr);*/
 	}
 }

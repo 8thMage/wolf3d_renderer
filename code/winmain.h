@@ -54,6 +54,7 @@ struct Input
 	ButtonInfo button_j;
 	ButtonInfo button_e;
 	ButtonInfo button_q;
+	ButtonInfo button_z;
 	ButtonInfo button_page_up;
 	ButtonInfo button_page_down;
 	ButtonInfo last_button;
@@ -62,6 +63,7 @@ struct Input
     s16 button_pushed_length;
     s16 mouse_wheel_turns;
     Vec2 mouse_pos; 
+	Vec2 logical_mouse_pos;
 	u32 time;
 };
 typedef bool read_file_type(char* path,MemoryBuffer* memorybuffer,s32* length,void** file);

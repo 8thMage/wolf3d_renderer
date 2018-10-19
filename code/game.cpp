@@ -141,8 +141,8 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
 		game_data=game_memory->game_data;
 		Map* map=game_data->wall_tile_map=push_struct(game_memory->const_buffer,Map);
-		map->width=50;
-		map->height=50;
+		map->width=100;
+		map->height=100;
 		map->arr=push_array(game_memory->const_buffer,bool,map->width*map->height);
 
 		for(int i=1;i<map->height-1;i++)
@@ -238,7 +238,7 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	
 	float fov_per_pixel=player->fov/wolf_screen.width;
 
-	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height),0);
+	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height),0x11222222);
 #pragma omp parallel for
 	for(int x=0;x<wolf_screen.width;x++)
 	{
@@ -255,12 +255,12 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 			height=(float)wolf_screen.height;
 		}
 		Rect wolf_rect=make_rect_from_center_width_height((float)x,(float)wolf_screen.height/2.f,1.f,height);
-		if((int)intersection_point.x!=intersection_point.x&&(int)(intersection_point.x*10)%2)
+		if((int)(intersection_point.x*10+0.5)%2)
 			draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
 
-		else if((int)intersection_point.y!=intersection_point.y&&(int)(intersection_point.y*10)%2)
+		else if((int)(intersection_point.y*10+0.5)%2)
 		{
-			draw_rect(&wolf_screen,wolf_rect,0xffff22ff);
+			draw_rect(&wolf_screen,wolf_rect,0xffff2222);
 		}
 		else
 			draw_rect(&wolf_screen,wolf_rect,0x22ffffff);

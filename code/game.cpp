@@ -238,7 +238,8 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	
 	float fov_per_pixel=player->fov/wolf_screen.width;
 
-	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height),0x11222222);
+	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11222222);
+	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,(float)wolf_screen.height/2.f,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11335533);
 #pragma omp parallel for
 	for(int x=0;x<wolf_screen.width;x++)
 	{

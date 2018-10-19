@@ -315,7 +315,11 @@ static Vec2 operator + (Vec2i a, Vec2 b)
 	Vec2 Res={(float)a.x+b.x,(float)a.y+b.y};
 	return Res;
 } ;
-
+static Vec2 operator - (Vec2i a, Vec2 b)
+{
+	Vec2 Res={(float)a.x-b.x,(float)a.y-b.y};
+	return Res;
+} ;
 static Vec2i operator - (Vec2i a, Vec2i b)
 {
 	Vec2i Res={a.x-b.x,a.y-b.y};
@@ -578,6 +582,10 @@ static Rect make_rect_from_mincorner_width_height(Vec2 mincorner,Vec2 dimensions
 static Rect make_rect_from_mincorner_width_height(r32 mincorner_x,r32 mincorner_y,r32 width,r32 height)
 {
 	return {mincorner_x,mincorner_y,mincorner_x+width,mincorner_y+height};
+}
+static Rect make_rect_from_mincorner_width_height(r32 mincorner_x,r32 mincorner_y,Vec2 dims)
+{
+	return {mincorner_x,mincorner_y,mincorner_x+dims.x,mincorner_y+dims.y};
 }
 static Rect operator *( Rect rectin, float a)
 {

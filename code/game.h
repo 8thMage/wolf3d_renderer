@@ -13,32 +13,25 @@ struct Render_queue
 {
 	MemoryBuffer* queue;
 };
-struct MBalls
+struct Map
 {
-	Vec2* pos;
-	float* rad;
-	int len;
-	int capacity;
+	bool* arr;
+	int width;
+	int height;
 };
-
-struct Balls
+struct Player
 {
-	Vec2* pos;
-	Vec2* velocity;
-	int len;
-	float radius;
-};
-struct Mbs_addition_context
-{
-	bool mouse_down;
-	bool keep_down;
-	Vec2 start_pos;
+	Vec2 pos;
+	Vec2 look_dir;
+	float fov;
 };
 struct Game_data
 {
-	MBalls mbs;
-	Balls balls;
-	Mbs_addition_context mbs_add_con;
+	Map* wall_tile_map;
+	Player player;
+	bool dust_on;
+	bool balls_on;
+	bool edit_on;
 };
 
 struct GameMemory

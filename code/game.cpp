@@ -2,183 +2,6 @@
 #include "render.h"
 #include "stdio.h"
 Vec2 screen_dim_;
-void push_mballs_to_render_queue(MemoryBuffer* render_queue, MBalls* mbs)
-{
-	RC_MBalls* rc_mbs=push_struct(render_queue,RC_MBalls);
-	rc_mbs->tag=RT_MBalls;
-	rc_mbs->mballs_position=mbs->pos;
-	rc_mbs->mballs_radius=mbs->rad;
-	rc_mbs->len=mbs->len;
-}
-void push_balls_to_render_queue(MemoryBuffer* render_queue, Balls* bs)
-{
-	RC_Balls* rc_bs=push_struct(render_queue,RC_Balls);
-	rc_bs->tag=RT_Balls;
-	rc_bs->pos=bs->pos;
-	rc_bs->len=bs->len;
-	rc_bs->radius=bs->radius;
-}
-void push_dust_to_render_queue(MemoryBuffer* render_queue, Balls* bs)
-{
-	RC_Dust* rc_dust=push_struct(render_queue,RC_Dust);
-	rc_dust->tag=RT_Dust;
-	rc_dust->pos=bs->pos;
-	rc_dust->len=bs->len;
-}
-void push_triangle_to_render_queue(MemoryBuffer* render_queue, Vec2 vrt1, Vec2 vrt2,Vec2 vrt3)
-{
-	RC_Triangle* rc_tri=push_struct(render_queue,RC_Triangle);
-	rc_tri->tag=RT_Triangle;
-	rc_tri->vrts[0]=vrt1;
-	rc_tri->vrts[1]=vrt2;
-	rc_tri->vrts[2]=vrt3;
-}
-Vec2 grad_mballs(MBalls* mbs,Vec2 mouse_pos)
-{
-	Vec2 res={};
-	forei(mbs->len)
-	{
-		Vec2 rel_pos=mouse_pos-mbs->pos[i];
-		float rel_dist_sqrd=DotProduct(rel_pos,rel_pos);
-		float recp_rel_dist=1/sqrtf(rel_dist_sqrd);
-		Vec2 adder = rel_pos*recp_rel_dist*recp_rel_dist*recp_rel_dist;
-		res-=adder*mbs->rad[i];
-	}
-	return res;
-}
-float mballs_fun(MBalls* mbs,Vec2 pos)
-{
-	float res=-1;
-	forei(mbs->len)
-	{
-		Vec2 rel_pos=pos-mbs->pos[i];
-		float rel_dist_sqrd=rel_pos.x*rel_pos.x+rel_pos.y*rel_pos.y;
-		//float rel_dist_sqrd=DotProduct(rel_pos,rel_pos);
-		__m128 rel_dist_sqrd_vec=_mm_set_ss(rel_dist_sqrd);
-		float recp_rel_dist=_mm_cvtss_f32(_mm_rsqrt_ss(rel_dist_sqrd_vec));
-		res+=recp_rel_dist*mbs->rad[i];
-	}
-	return res;
-}
-Vec2 screen_pos_to_logical_pos(Vec2 input,Vec2 screen_dim)//used for mouse
-{
-	Vec2 ret;
-	float screen_ratio=screen_dim.x/screen_dim.y;
-	ret=HaddamardProduct(input,vec2f(2.f/screen_dim.x,2.f/screen_dim.y));
-	ret-=vec2f(1,1);
-	ret.y=-ret.y;//from -1 to 1 
-	ret.x*=screen_ratio;//from -16/9 to 16/9 and -1 to 1
-	return ret;
-}
-Vec2 logical_coord_to_uniform_coord(Vec2 input,Vec2 screen_dim)//used for mouse
-{
-	float screen_ratio=screen_dim.x/screen_dim.y;
-	Vec2 ret;
-	ret=input;
-	ret.x/=screen_ratio;
-	return ret;
-}
-
-//bool balls_collided(Balls* balls,int i,MBalls* mbs,MemoryBuffer* render_queue,Vec2* collision)
-bool balls_collided(Balls* balls,int i,MBalls* mbs,Vec2* collision)
-{
-	bool early_out=false;
-	bool collided=false;
-	forej(mbs->len)
-	{
-		if(Norm2(balls->pos[i]-mbs->pos[i])<balls->radius*balls->radius)
-		{
-			early_out=true;
-			break;
-		}
-	}
-	if(early_out) return false;
-	Vec2 iter=balls->pos[i];
-	float previus_f_1=-1000;
-	float previus_f_2=-1000;
-	while(true)
-	{
-		float f=mballs_fun(mbs,iter);
-		if(fabs(f-previus_f_2)<1E-5)
-		{
-			break;
-		}
-		Vec2 grad=Normalize(grad_mballs(mbs,iter));
-		iter-=grad*0.1*balls->radius;
-		iter=balls->pos[i]-balls->radius*Normalize(balls->pos[i]-iter);
-		//debugging this
-		Vec2 grad_perp=Perp(grad);
-		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim_)*0.01;
-		Vec2 uniform_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim_)*0.01;
-		Vec2 uniform_iter=logical_coord_to_uniform_coord(iter,screen_dim_);
-		//push_triangle_to_render_queue(render_queue,uniform_iter+uniform_grad,uniform_iter+uniform_perp,uniform_iter-uniform_perp);
-		previus_f_2=previus_f_1;
-		previus_f_1=f;
-	}
-	if(mballs_fun(mbs,iter)<0)
-	{
-		*collision=iter;
-		return true;
-	}
-
-	return false;
-}
-void dust_logic(Balls* balls,MBalls* mbs)
-{
-	Vec2 collision={};
-	for(int k=0;k<10;k++)
-	{
-		for(int i=0;i<balls->len;i++)
-		{
-			balls->pos[i]+=balls->velocity[i]/10;
-			if(mballs_fun(mbs,balls->pos[i])<0)
-			{
-				Vec2 grad=Normalize(grad_mballs(mbs,balls->pos[i]));
-				balls->velocity[i]-=2*grad*DotProduct(grad,balls->velocity[i]);
-			}
-		}
-	}
-}
-void balls_logic(Balls* balls,MBalls* mbs)
-{
-	float viscosity=0.000001;
-	Vec2 collision={};
-	int iterations=100;
-	for(int k=0;k<iterations;k++)
-	{
-//#pragma omp parallel for
-		for(int i=0;i<balls->len;i++)
-		{
-			balls->pos[i]+=balls->velocity[i]/(float)iterations;
-			balls->velocity[i]-=viscosity*balls->velocity[i];
-			if(balls_collided(balls,i,mbs,&collision))
-			{
-				Vec2 grad=Normalize(grad_mballs(mbs,collision));
-				float dot_prod=DotProduct(grad,balls->velocity[i]);
-				if(dot_prod<0)
-					balls->velocity[i]-=2*grad*dot_prod;
-			}
-		}
-		for(int i=0;i<balls->len;i++)
-		{
-			for(int j=i+1;j<balls->len;j++)
-			{
-				Vec2 rel_pos=balls->pos[i]-balls->pos[j];
-				if(Norm2(rel_pos)<4*balls->radius*balls->radius)
-				{
-					Vec2 rel_vel=balls->velocity[i]-balls->velocity[j];
-					if(DotProduct(rel_vel,rel_pos)<0)
-					{
-						float minus_rel_pos_norm2=-Norm2(rel_pos);
-						Vec2 adder=rel_pos*DotProduct(rel_vel,rel_pos)/minus_rel_pos_norm2;
-						balls->velocity[i]+=adder;
-						balls->velocity[j]-=adder;
-					}
-				}
-			}
-		}
-	}
-}
 bool was_pressed(ButtonInfo button)
 {
 	bool res=((button.state==true&&button.changes==1)||(button.changes>1));
@@ -190,140 +13,237 @@ bool was_released(ButtonInfo button)
 
 	return res;
 }
-void handle_mouse_addition_mball(Input* input,MBalls* mbs,Mbs_addition_context* mbs_add_con)
+void draw_rect(PictureBuffer* buffer,int start_x,int start_y,int end_x,int end_y,u32 color)
 {
-	if(mbs_add_con->mouse_down)
+	for(int y=start_y;y<end_y;y++)
 	{
-		Vec2 rel_pos=input->logical_mouse_pos-mbs_add_con->start_pos;
-		float radius=Norm(rel_pos);
-		mbs->rad[mbs->len-1]=radius;
-	}
-	if(input->button_mouse_left.state==false||input->button_mouse_left.changes>1)
-	{
-		if(mbs_add_con->mouse_down)
+		for(int x=start_x;x<end_x;x++)
 		{
-			mbs_add_con->mouse_down=false;
+			int index=x+y*buffer->pitch;
+			buffer->picture[index]=color;
 		}
-		mbs_add_con->keep_down=false;
-	}
-	if(input->button_mouse_left.state==true||input->button_mouse_left.changes>1)
-	{
-		if(!mbs_add_con->mouse_down&&!mbs_add_con->keep_down)
-		{
-			if(mbs->capacity>mbs->len)
-			{
-				mbs_add_con->mouse_down=true;
-				mbs_add_con->start_pos=input->logical_mouse_pos;
-				mbs->len=mbs->len+1;
-				mbs->rad[mbs->len-1]=0;
-				mbs->pos[mbs->len-1]=mbs_add_con->start_pos;
-			}
-		}
-	}
-	if(was_released(input->button_esc))
-	{
-		if(mbs_add_con->mouse_down)
-		{
-			mbs_add_con->mouse_down=false;
-			mbs_add_con->keep_down=true;
-			if(mbs->len>0)
-				mbs->len--;
-		}
-	}
-	if(was_released(input->button_z))
-	{
-		if(!mbs_add_con->mouse_down)
-		{
-			if(mbs->len>0)
-				mbs->len--;
-		}
-
 	}
 }
+void draw_rect(PictureBuffer* buffer,Rect rect,u32 color)
+{
+	int rect_start_x=(int)(rect.startx);
+	int rect_start_y=(int)(rect.starty);
+	int rect_end_x=(int)(rect.endx);
+	int rect_end_y=(int)(rect.endy);
+	draw_rect(buffer,rect_start_x,rect_start_y,rect_end_x,rect_end_y,color);
 
+}
+void render_map(Map* map,Player* player, PictureBuffer* sub_screen)
+{
+	int height=map->height;
+	int width=map->width;
+	float pixel_per_tile_x=(float)sub_screen->width/(float)width;
+	float pixel_per_tile_y=(float)sub_screen->height/(float)height;
+	Vec2 pixel_per_tile=vec2f(pixel_per_tile_x,pixel_per_tile_y);
+#pragma omp parallel for
+	for(int y=0;y<height;y++)
+	{
+		for(int x=0;x<width;x++) 
+		{
+			Rect rect=make_rect_from_mincorner_width_height(pixel_per_tile_x*x,pixel_per_tile_y*y,pixel_per_tile);
+			bool wall=map->arr[x+y*height];
+			if(wall)
+				draw_rect(sub_screen,rect,0xff00ff00);
+			else
+				draw_rect(sub_screen,rect,0xff);
+		}
+	}
+	for(int y=0;y<height;y++)
+	{
+		for(int x=0;x<width;x++) 
+		{
+			int rect_start_x=(int)(pixel_per_tile_x*x);
+			int rect_start_y=(int)(pixel_per_tile_y*y);
+			int rect_end_x=(int)(pixel_per_tile_x*(x+1));
+			int rect_end_y=(int)(pixel_per_tile_y*(y+1));
+			Rect rect=make_rect_from_mincorner_width_height(pixel_per_tile_x*x,pixel_per_tile_y*y,1,pixel_per_tile_y);
+			draw_rect(sub_screen,rect,0xffff0000);
+			rect=make_rect_from_mincorner_width_height(pixel_per_tile_x*x,pixel_per_tile_y*y,pixel_per_tile_x,1);
+			draw_rect(sub_screen,rect,0xffff0000);
+		}
+	}
+	{
+		Vec2 center=HaddamardProduct(pixel_per_tile,player->pos);
+		Rect rect=make_rect_from_center_width_height(center,pixel_per_tile*0.1);
+		draw_rect(sub_screen,rect,0x00ff0000);
+	}
+	{
+		Vec2 pov_start_pos=HaddamardProduct(pixel_per_tile,player->pos+player->look_dir+Perp(player->look_dir)*player->fov);
+		Rect rect=make_rect_from_center_width_height(pov_start_pos,pixel_per_tile*0.1);
+		draw_rect(sub_screen,rect,0x00ffffff);
+		Vec2 pov_end_pos=HaddamardProduct(pixel_per_tile,player->pos+player->look_dir-Perp(player->look_dir)*player->fov);
+		rect=make_rect_from_center_width_height(pov_end_pos,pixel_per_tile*0.1);
+		draw_rect(sub_screen,rect,0x00ffffff);
+	}
+}
+Vec2 find_intersection_point(Map* map,Player* player,Vec2 dir)
+{
+//	float pixel_per_tile_x=(float)map_screen.width/(float)map->width;
+//	float pixel_per_tile_y=(float)map_screen.height/(float)map->height;
+//	Vec2 pixel_per_tile=vec2f(pixel_per_tile_x,pixel_per_tile_y);
+	Vec2i current_tile=vec2i((int)player->pos.x,(int)player->pos.y);
+	int dirv=1;
+	if(dir.y<0)
+	{
+		dirv=-1;
+	}
+	int dirh=1;
+	if(dir.x<0)
+	{
+		dirh=-1;
+	}
+	while(true)
+	{
+		int index=current_tile.x+current_tile.y*map->width;
+		if(!map->arr[index])
+		{
+			//paint the point of intersection.
+			Vec2 rel_pos=current_tile-player->pos;
+			float t1=((rel_pos.y-(dirv-1)/2)/dir.y);
+			float t=-1;
+			float t2=((rel_pos.x-(dirh-1)/2)/dir.x);
+			if(dir.x*t1-rel_pos.x>=0&&dir.x*t1- rel_pos.x<=1)
+			{
+				t=t1;
+			}
+			else
+			{
+				t=t2;
+			}
+			return t*dir+player->pos;
+		}
+		Vec2i right_tile=current_tile+vec2i(dirh,0);
+		Vec2i down_tile=current_tile+vec2i(0,dirv);
+		Vec2 right_tile_rel=right_tile-player->pos+vec2f(0.5,0.5);
+		Vec2 down_tile_rel=down_tile-player->pos+vec2f(0.5,0.5);
+		Vec2 perp=Perp(dir);
+		if(es_abs(DotProduct(right_tile_rel,perp))<es_abs(DotProduct(down_tile_rel,perp)))
+		{
+			current_tile=right_tile;
+		}
+		else
+		{
+			current_tile=down_tile;
+		}
+	}
+}
 void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 {
 	Game_data* game_data=game_memory->game_data;
 	screen_dim_=vec2f((float)game_memory->draw_context.screen->width,(float)game_memory->draw_context.screen->height);
-	Balls* balls;
-	if(!game_data&&input->button_p.state)
+	if(!game_data)
 	{
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
-	
 		game_data=game_memory->game_data;
-		game_data->mbs.len=1;
-		game_data->mbs.capacity=10;
-		game_data->mbs.rad=push_array(game_memory->const_buffer,float,game_data->mbs.capacity);
-		game_data->mbs.pos=push_array(game_memory->const_buffer,Vec2,game_data->mbs.capacity);
-		game_data->mbs.pos[1]={0,0.5};
-		game_data->mbs.rad[1]=0.1;
-		game_data->mbs.pos[0]={0,-0.5};
-		game_data->mbs.rad[0]=0.2;
-		game_data->mbs.pos[2]={0.5,0.5};
-		game_data->mbs.rad[2]=0.2;
-		game_data->mbs.pos[3]={-0.8,-0.5};
-		game_data->mbs.rad[3]=0.1;
-		game_data->mbs.pos[4]={-0.8,0};
-		game_data->mbs.rad[4]=0.05;
-		
-		/*game_data->mbs.pos[1]={0,0.5};
-		game_data->mbs.rad[1]=0.25016;
-		game_data->mbs.pos[0]={0,-0.5};
-		game_data->mbs.rad[0]=0.25016;*/
+		Map* map=game_data->wall_tile_map=push_struct(game_memory->const_buffer,Map);
+		map->width=10;
+		map->height=10;
+		map->arr=push_array(game_memory->const_buffer,bool,map->width*map->height);
+		map->arr[5*10+5]=1;
 
-		game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,10 MB);
-
-		balls=&game_data->balls;
-		balls->len=40;
-		balls->pos=push_array(game_memory->const_buffer,Vec2,balls->len);
-		balls->velocity=push_array(game_memory->const_buffer,Vec2,balls->len);
-		for(int i=0;i<balls->len;i++)
-		{
-			balls->pos[i]=vec2f(0,i/1000.f-0.5000f);
-			balls->velocity[i]=vec2f(0.01,0);
-//			balls->velocity[i]=vec2f(0.0,0);
-			//balls->pos[i]=vec2f(-0.5,-0.5);
-		}
-	//	balls->velocity[0]=vec2f(0,0);
-	//	balls->velocity[1]=vec2f(0.01,0);
-	//	balls->pos[0]={0,-0.515};
-	//	balls->pos[1]={-0.5,-0.5};
-		balls->radius=0.03;
+		game_data->player.pos=vec2f(5.5f,5.5f);
+		game_data->player.look_dir=Normalize(vec2f(1,1));
+		game_data->player.fov=0.5;
 	}
-	if(game_data)
+
+
+	PictureBuffer* screen=game_memory->draw_context.screen;
+	PictureBuffer map_screen=*screen;
+	map_screen.width=screen->width-(screen->width/2+11);
+	map_screen.picture+=(screen->width/2+11);
+	for(int y=0;y<screen->height;y++)
 	{
-		Vec2 mouse_pos=input->mouse_pos;
-		Vec2 logical_mouse_pos=screen_pos_to_logical_pos(mouse_pos,screen_dim_);
-		input->logical_mouse_pos=logical_mouse_pos;
-
-		balls=&game_data->balls;
-		handle_mouse_addition_mball(input,&game_data->mbs,&game_data->mbs_add_con);
-
-		push_mballs_to_render_queue(game_memory->render_queue,&game_data->mbs);
-
-
-		Vec2 grad=Normalize(grad_mballs(&game_data->mbs,logical_mouse_pos))*0.01;
-
-		Vec2 grad_perp=Perp(grad)*10;
-		Vec2 uniform_mouse_pos=logical_coord_to_uniform_coord(logical_mouse_pos,screen_dim_);
-		Vec2 uniform_grad_perp=logical_coord_to_uniform_coord(grad_perp,screen_dim_);
-		Vec2 uniform_grad=logical_coord_to_uniform_coord(grad,screen_dim_);
-		//	push_triangle_to_render_queue(game_memory->render_queue,uniform_mouse_pos+uniform_grad*10,uniform_mouse_pos-uniform_grad_perp,uniform_mouse_pos+uniform_grad_perp);
-
-		balls_logic(balls,&game_data->mbs);
-//		push_dust_to_render_queue(game_memory->render_queue,balls);
-
-//		balls->pos[0]=logical_mouse_pos;
-		push_balls_to_render_queue(game_memory->render_queue,balls);
-//		balls_collided(balls,0,&game_data->mbs,game_memory->render_queue,&logical_mouse_pos);
-
-	/*	float energy=0;
-		for(int i=0;i<balls->len;i++)
+		for(int x=screen->width/2-10;x<screen->width/2+11;x++)
 		{
-			energy+=Norm2(balls->velocity[i]);
+			int index=x+y*screen->pitch;
+			screen->picture[index]=0xffffffff;
 		}
-		char arr[100];
-		snprintf(arr,100,"energy is %g\n",energy);
-		OutputDebugString(arr);*/
 	}
+	for(int y=0;y<map_screen.height;y++)
+	{
+		for(int x=0;x<map_screen.width;x++)
+		{ 
+			int index=x+y*map_screen.pitch;
+			map_screen.picture[index]=0x000000ff;
+		}
+	}
+	render_map(game_data->wall_tile_map,&game_data->player,&map_screen);
+
+	Vec2 mouse_pos=input->mouse_pos;
+	Rect map_screen_rect=make_rect_from_mincorner_width_height((float)(screen->width/2+11),0,(float)map_screen.width,(float)map_screen.height);
+	if(is_vector_in_rect(map_screen_rect,mouse_pos))
+	{
+		Vec2 mouse_pos_in_map=vector_pos_rect_to_01(map_screen_rect,mouse_pos);
+		Vec2 mouse_pos_in_tiles=HaddamardProduct(mouse_pos_in_map,vec2f((float)game_data->wall_tile_map->width,(float)game_data->wall_tile_map->height));
+		int index=(int)mouse_pos_in_tiles.x+game_data->wall_tile_map->width*(int)mouse_pos_in_tiles.y;
+		if(was_pressed(input->button_mouse_left))
+		{
+			game_data->wall_tile_map->arr[index]=!game_data->wall_tile_map->arr[index];
+		}
+	}
+
+	Player* player=&game_data->player;
+	if(input->button_w.state)
+	{
+		game_data->player.pos+=player->look_dir*0.03;
+	}
+			
+	if(input->button_s.state)
+	{
+		game_data->player.pos-=player->look_dir*0.03;
+	}
+	if(input->button_a.state)
+	{
+		Vec2 perp_look_dir=Perp(player->look_dir);
+		player->look_dir+=perp_look_dir*0.1;
+		player->look_dir=Normalize(player->look_dir);
+	}
+	if(input->button_d.state)
+	{
+			Vec2 perp_look_dir=Perp(player->look_dir);
+		player->look_dir-=perp_look_dir*0.1;
+		player->look_dir=Normalize(player->look_dir);
+	}
+
+	Map* map=game_data->wall_tile_map;
+	float pixel_per_tile_x=(float)map_screen.width/(float)map->width;
+	float pixel_per_tile_y=(float)map_screen.height/(float)map->height;
+	Vec2 pixel_per_tile=vec2f(pixel_per_tile_x,pixel_per_tile_y);
+	Vec2 player_pos=player->pos;
+	Vec2 intersection_point=find_intersection_point(map,player,player->look_dir);
+	Rect rect=make_rect_from_center_width_height(HaddamardProduct(intersection_point,pixel_per_tile),10,10);
+	draw_rect(&map_screen,rect,0x22ff22ff);
+
+	PictureBuffer wolf_screen=*screen;
+	wolf_screen.width=screen->width-(screen->width/2+11);
+	
+	float fov_per_pixel=player->fov/wolf_screen.width;
+
+	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height),0);
+	for(int x=0;x<wolf_screen.width;x++)
+	{
+		Vec2 dir=player->look_dir+(fov_per_pixel*(x-wolf_screen.width/2))*Perp(player->look_dir);
+		Vec2 intersection_point=find_intersection_point(map,player,dir);
+		Rect rect=make_rect_from_center_width_height(HaddamardProduct(intersection_point,pixel_per_tile),10,10);
+		draw_rect(&map_screen,rect,0x22ff22ff);
+		
+		float z=DotProduct(intersection_point-player->pos,player->look_dir);
+		//paint the screen so 0.1 dist will be full screen;
+		float height=0.5f/z*wolf_screen.height;
+		if(height>wolf_screen.height)
+		{
+			height=(float)wolf_screen.height;
+		}
+		Rect wolf_rect=make_rect_from_center_width_height((float)x,(float)wolf_screen.height/2.f,1.f,height);
+		draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
+
+
+	}
+
 }
+

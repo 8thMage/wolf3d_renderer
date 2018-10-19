@@ -700,7 +700,7 @@ int CALLBACK WinMain(
 	QueryPerformanceCounter(&t2);
 	Input input = {};
 
-	initOpengl(window);
+	//initOpengl(window);
 	//GameState gamestate = {};
 
 	u64 temp_memory_size = 250 MB;
@@ -738,6 +738,7 @@ int CALLBACK WinMain(
 	//Assert(read_file("../Future CITY 4.4/region/r.0.0.mca",game_memory.temp_buffer,&zlib_file_length,&zlib_file_buffer));
 	//read_and_parse_region_buffer(zlib_file_buffer,zlib_file_length);
 	
+		//HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
 	while (running)
 	{
 		t1 = t2;
@@ -879,13 +880,14 @@ int CALLBACK WinMain(
 		goGame(&input, &game_memory,&read_file);
 		Vec2 dpi = vec2f(dpixf, dpiyf);
 
-		render(game_memory.render_queue);
+		//render(game_memory.render_queue);
 
 		if(!is_playing)
-			push_to_screen_opengl(screen, hdc);
-
-		/*HDC hdcNew=CreateCompatibleDC(hdc);
+		{	//push_to_screen_opengl(screen, hdc);
+		}
+		HDC hdcNew=CreateCompatibleDC(hdc);
 		u32* screen_picture=game_memory.draw_context.screen->picture;
+	
 		HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
 		game_memory.draw_context.screen->pitch=game_memory.draw_context.screen->width;
 		HBITMAP hbmOld = (HBITMAP)SelectObject(hdcNew,BitmapHandle);
@@ -896,7 +898,7 @@ int CALLBACK WinMain(
 
 		s32 check= DeleteObject(hbmOld);
 		s32 check2= DeleteObject(BitmapHandle);
-*/
+
 		QueryPerformanceCounter(&t2);
 		DWORD l = (DWORD)((t2.QuadPart - t1.QuadPart) * 1000000 / freq.QuadPart);
 		if (input_file&&input_file2)

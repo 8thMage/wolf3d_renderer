@@ -141,14 +141,21 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
 		game_data=game_memory->game_data;
 		Map* map=game_data->wall_tile_map=push_struct(game_memory->const_buffer,Map);
-		map->width=10;
-		map->height=10;
+		map->width=50;
+		map->height=50;
 		map->arr=push_array(game_memory->const_buffer,bool,map->width*map->height);
-		map->arr[5*10+5]=1;
 
+		for(int i=1;i<map->height-1;i++)
+		{
+			for(int j=1;j<map->width-1;j++)
+			{
+				map->arr[j+i*map->width]=rand()/(float)RAND_MAX>0.2;
+			}
+		}
+		map->arr[5*map->width+5]=1;
 		game_data->player.pos=vec2f(5.5f,5.5f);
 		game_data->player.look_dir=Normalize(vec2f(1,1));
-		game_data->player.fov=0.5;
+		game_data->player.fov=2;
 	}
 
 
@@ -188,6 +195,7 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	}
 
 	Player* player=&game_data->player;
+	Vec2 player_old_pos=player->pos;
 	if(input->button_w.state)
 	{
 		game_data->player.pos+=player->look_dir*0.03;
@@ -200,17 +208,23 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	if(input->button_a.state)
 	{
 		Vec2 perp_look_dir=Perp(player->look_dir);
-		player->look_dir+=perp_look_dir*0.1;
+		player->look_dir+=perp_look_dir*0.04;
 		player->look_dir=Normalize(player->look_dir);
 	}
 	if(input->button_d.state)
 	{
 			Vec2 perp_look_dir=Perp(player->look_dir);
-		player->look_dir-=perp_look_dir*0.1;
+		player->look_dir-=perp_look_dir*0.04;
 		player->look_dir=Normalize(player->look_dir);
 	}
-
 	Map* map=game_data->wall_tile_map;
+	int index=(int)player->pos.x+(int)player->pos.y*map->width;
+	if(!map->arr[index])
+	{
+		player->pos=player_old_pos;
+	}
+
+
 	float pixel_per_tile_x=(float)map_screen.width/(float)map->width;
 	float pixel_per_tile_y=(float)map_screen.height/(float)map->height;
 	Vec2 pixel_per_tile=vec2f(pixel_per_tile_x,pixel_per_tile_y);
@@ -225,6 +239,7 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	float fov_per_pixel=player->fov/wolf_screen.width;
 
 	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height),0);
+#pragma omp parallel for
 	for(int x=0;x<wolf_screen.width;x++)
 	{
 		Vec2 dir=player->look_dir+(fov_per_pixel*(x-wolf_screen.width/2))*Perp(player->look_dir);
@@ -234,13 +249,21 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		
 		float z=DotProduct(intersection_point-player->pos,player->look_dir);
 		//paint the screen so 0.1 dist will be full screen;
-		float height=0.5f/z*wolf_screen.height;
+		float height=1.f/z*wolf_screen.height;
 		if(height>wolf_screen.height)
 		{
 			height=(float)wolf_screen.height;
 		}
 		Rect wolf_rect=make_rect_from_center_width_height((float)x,(float)wolf_screen.height/2.f,1.f,height);
-		draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
+		if((int)intersection_point.x!=intersection_point.x&&(int)(intersection_point.x*10)%2)
+			draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
+
+		else if((int)intersection_point.y!=intersection_point.y&&(int)(intersection_point.y*10)%2)
+		{
+			draw_rect(&wolf_screen,wolf_rect,0xffff22ff);
+		}
+		else
+			draw_rect(&wolf_screen,wolf_rect,0x22ffffff);
 
 
 	}

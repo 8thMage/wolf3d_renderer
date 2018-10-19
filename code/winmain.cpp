@@ -730,15 +730,46 @@ int CALLBACK WinMain(
 	dll = LoadLibrary("render3dnow.dll");
 	goGame = (goGametype*)GetProcAddress(dll, "go_game");
 	screen = { 0,0,width,height,width };
-	screen.picture=(u32*)alloc_memory(width*height*4);
+	//screen.picture=(u32*)alloc_memory(width*height*4);
 	HANDLE input_file = 0;
 	int zlib_file_length=0;
 	void* zlib_file_buffer=0;
 	HANDLE input_file2 = 0;
 	//Assert(read_file("../Future CITY 4.4/region/r.0.0.mca",game_memory.temp_buffer,&zlib_file_length,&zlib_file_buffer));
 	//read_and_parse_region_buffer(zlib_file_buffer,zlib_file_length);
-	
-		//HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
+
+	//HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
+	/*HBITMAP CreateDIBSection(
+	  HDC              hdc,
+	  const BITMAPINFO *pbmi,
+	  UINT             usage,
+	  VOID             **ppvBits,
+	  HANDLE           hSection,
+	  DWORD            offset
+	  );*/
+	/*typedef struct tagBITMAPINFOHEADER {
+	  DWORD biSize;
+	  LONG  biWidth;
+	  LONG  biHeight;
+	  WORD  biPlanes;
+	  WORD  biBitCount;
+	  DWORD biCompression;
+	  DWORD biSizeImage;
+	  LONG  biXPelsPerMeter;
+	  LONG  biYPelsPerMeter;
+	  DWORD biClrUsed;
+	  DWORD biClrImportant;
+	  } BITMAPINFOHEADER, *PBITMAPINFOHEADER;*/
+	BITMAPINFOHEADER header={};
+	header.biSize=sizeof(header);
+	header.biWidth=screen.width;
+	header.biHeight=-screen.height;
+	header.biPlanes=1;
+	header.biBitCount=32;
+	header.biCompression=BI_RGB;
+	header.biSizeImage=0;
+	BITMAPINFO info={header,0};
+	HBITMAP new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
 	while (running)
 	{
 		t1 = t2;
@@ -888,16 +919,16 @@ int CALLBACK WinMain(
 		HDC hdcNew=CreateCompatibleDC(hdc);
 		u32* screen_picture=game_memory.draw_context.screen->picture;
 	
-		HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
+		//HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
 		game_memory.draw_context.screen->pitch=game_memory.draw_context.screen->width;
-		HBITMAP hbmOld = (HBITMAP)SelectObject(hdcNew,BitmapHandle);
+		HBITMAP hbmOld = (HBITMAP)SelectObject(hdcNew,new_bitmap);
 		BitBlt(hdc,0,0,game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,hdcNew,0,0,SRCCOPY);
 
 
 		DeleteDC(hdcNew);
 
-		s32 check= DeleteObject(hbmOld);
-		s32 check2= DeleteObject(BitmapHandle);
+		//s32 check= DeleteObject(hbmOld);
+		//s32 check2= DeleteObject(BitmapHandle);
 
 		QueryPerformanceCounter(&t2);
 		DWORD l = (DWORD)((t2.QuadPart - t1.QuadPart) * 1000000 / freq.QuadPart);

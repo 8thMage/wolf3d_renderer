@@ -897,6 +897,18 @@ int CALLBACK WinMain(
 			//if(screen.picture)
 			//	VirtualFree(screen.picture,0,MEM_RELEASE);
 			//screen.picture=(unsigned int*)VirtualAlloc(0,width*height*4, MEM_COMMIT, PAGE_READWRITE);
+			DeleteObject(new_bitmap);
+			BITMAPINFOHEADER header={};
+			header.biSize=sizeof(header);
+			header.biWidth=screen.width;
+			header.biHeight=-screen.height;
+			header.biPlanes=1;
+			header.biBitCount=32;
+			header.biCompression=BI_RGB;
+			header.biSizeImage=0;
+			BITMAPINFO info={header,0};
+			new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
+
 			resized = false;
 
 		}

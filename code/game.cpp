@@ -33,6 +33,15 @@ void draw_rect(PictureBuffer* buffer,Rect rect,u32 color)
 	draw_rect(buffer,rect_start_x,rect_start_y,rect_end_x,rect_end_y,color);
 
 }
+void draw_rect_transposed(PictureBuffer* buffer,Rect rect,u32 color)
+{
+	int rect_start_y=(int)(rect.startx);
+	int rect_start_x=(int)(rect.starty);
+	int rect_end_y=(int)(rect.endx);
+	int rect_end_x=(int)(rect.endy);
+	draw_rect(buffer,rect_start_x,rect_start_y,rect_end_x,rect_end_y,color);
+
+}
 void render_map(Map* map,Player* player, PictureBuffer* sub_screen)
 {
 	int height=map->height;
@@ -132,10 +141,83 @@ Vec2 find_intersection_point(Map* map,Player* player,Vec2 dir)
 		}
 	}
 }
+void transpose_in_place(PictureBuffer screen)
+{
+	forei(screen.width)
+	{
+		forej(screen.height)
+		{
+			u32 temp=screen.picture[i*screen.height+j];
+			screen.picture[i*screen.height+j]=screen.picture[j*screen.width+i];
+			screen.picture[j*screen.width+i]=temp;
+		}
+	}
+}
+void transpose_out_place(PictureBuffer dst,PictureBuffer src)
+{
+#define x_block_dim 16
+#define y_block_dim 32
+#pragma omp parallel for
+	for(int y_block=0;y_block<dst.height;y_block+=y_block_dim)
+	{
+
+		for(int x_block=0;x_block<dst.width;x_block+=x_block_dim)
+		{
+			if(x_block+x_block_dim<dst.width&&y_block+y_block_dim<dst.height)
+			{
+				__declspec( align( 32 ) ) u32 block[x_block_dim][y_block_dim];
+				__declspec( align( 32 ) )u32 transposed_block[y_block_dim][x_block_dim];
+				u32* start_src_picture_block=src.picture+x_block*src.pitch+y_block;
+				for(int x=0;x<x_block_dim;x++)
+				{
+					__m256i load=_mm256_load_si256((__m256i*)(start_src_picture_block+x*src.pitch));
+					_mm256_store_si256((__m256i*)(&block[x][0]),load);
+					load=_mm256_load_si256((__m256i*)(start_src_picture_block+x*src.pitch+8));
+					_mm256_store_si256((__m256i*)(&block[x][8]),load);
+					load=_mm256_load_si256((__m256i*)(start_src_picture_block+x*src.pitch+16));
+					_mm256_store_si256((__m256i*)(&block[x][16]),load);
+					load=_mm256_load_si256((__m256i*)(start_src_picture_block+x*src.pitch+24));
+					_mm256_store_si256((__m256i*)(&block[x][24]),load);
+
+				}
+				for(int x=0;x<x_block_dim;x++)
+				{
+					for(int y=0;y<y_block_dim;y++)
+					{
+						transposed_block[y][x]=block[x][y];
+					}
+				}
+				u32* start_dst_picture_block=dst.picture+y_block*dst.pitch+x_block;
+				for(int y=0;y<y_block_dim;y++)
+				{
+					for(int x=0;x<x_block_dim;x+=8)
+					{
+						__m256i load=_mm256_load_si256((__m256i*)(&transposed_block[y][x]));;
+						_mm256_storeu_si256((__m256i*)(start_dst_picture_block+y*dst.pitch+x),load);
+					}
+				}
+			}
+			else
+			{
+				int x_extent=Min(x_block+x_block_dim,dst.width);
+				int y_extent=Min(y_block+y_block_dim,dst.height);
+				for(int j=y_block;j<y_extent;j++)
+				{
+					for(int i=x_block;i<x_extent;i++)
+					{
+						u32 temp=src.picture[i*src.pitch+j];
+						dst.picture[j*dst.pitch+i]=temp;
+					}
+				}
+			}
+		}
+	}
+}
 void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 {
 	Game_data* game_data=game_memory->game_data;
 	screen_dim_=vec2f((float)game_memory->draw_context.screen->width,(float)game_memory->draw_context.screen->height);
+	clear_memory_buffer(game_memory->temp_buffer);
 	if(!game_data)
 	{
 		game_memory->game_data=push_struct(game_memory->const_buffer,Game_data);
@@ -238,8 +320,27 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	
 	float fov_per_pixel=player->fov/wolf_screen.width;
 
-	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11222222);
-	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,(float)wolf_screen.height/2.f,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11335533);
+	//draw_rect(&wolf_screen,make_rect_from_mgame_memory->temp_buffer.placegame_memory->temp_buffer.placegame_memory->temp_buffer.placeincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11222222);
+	//draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,(float)wolf_screen.height/2.f,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11335533);
+	PictureBuffer transposed_wolf_screen;
+	transposed_wolf_screen.height=wolf_screen.width;
+	transposed_wolf_screen.width=wolf_screen.height;
+	transposed_wolf_screen.pitch=wolf_screen.height;
+	if(transposed_wolf_screen.pitch%8!=0)
+	{
+		int new_pitch = (transposed_wolf_screen.pitch&(-16)) + 8;
+
+		Assert(new_pitch % 8 == 0);
+		transposed_wolf_screen.pitch = new_pitch;
+	}
+	if(game_memory->temp_buffer->place%32!=0)
+	{
+		game_memory->temp_buffer->place=(game_memory->temp_buffer->place&(-32))+32;
+	}
+	transposed_wolf_screen.picture=push_array(game_memory->temp_buffer,u32,transposed_wolf_screen.pitch*transposed_wolf_screen.width);
+	draw_rect_transposed(&transposed_wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11222222);
+	draw_rect_transposed(&transposed_wolf_screen,make_rect_from_mincorner_width_height(0,(float)wolf_screen.height/2.f,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11335533);
+	
 #pragma omp parallel for
 	for(int x=0;x<wolf_screen.width;x++)
 	{
@@ -255,19 +356,22 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		{
 			height=(float)wolf_screen.height;
 		}
-		Rect wolf_rect=make_rect_from_center_width_height((float)x,(float)wolf_screen.height/2.f,1.f,height);
+		//Rect wolf_rect=make_rect_from_center_width_height((float)x,(float)wolf_screen.height/2.f,1.f,height);
+		Rect wolf_rect=make_rect_from_center_width_height((float)wolf_screen.height/2.f,(float)x,height,1.f);
 		if((int)(intersection_point.x*10+0.5)%2)
-			draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
+			//draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
+			draw_rect(&transposed_wolf_screen,wolf_rect,0x22ff22ff);
 
 		else if((int)(intersection_point.y*10+0.5)%2)
 		{
-			draw_rect(&wolf_screen,wolf_rect,0xffff2222);
+			draw_rect(&transposed_wolf_screen,wolf_rect,0xffff2222);
+			//draw_rect(&wolf_screen,wolf_rect,0xffff2222);
 		}
 		else
-			draw_rect(&wolf_screen,wolf_rect,0x22ffffff);
-
-
+			draw_rect(&transposed_wolf_screen,wolf_rect,0x22ffffff);
+			//draw_rect(&wolf_screen,wolf_rect,0x22ffffff);
 	}
-
+	transpose_out_place(wolf_screen,transposed_wolf_screen);
+	//transpose_in_place(*screen);
 }
 

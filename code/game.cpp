@@ -2,6 +2,9 @@
 #include "render.h"
 #include "stdio.h"
 Vec2 screen_dim_;
+MemoryBuffer* render_queue;
+int render_current_x;
+int render_current_y;
 bool was_pressed(ButtonInfo button)
 {
 	bool res=((button.state==true&&button.changes==1)||(button.changes>1));
@@ -26,11 +29,21 @@ void draw_rect(PictureBuffer* buffer,int start_x,int start_y,int end_x,int end_y
 }
 void draw_rect(PictureBuffer* buffer,Rect rect,u32 color)
 {
-	int rect_start_x=(int)(rect.startx);
-	int rect_start_y=(int)(rect.starty);
-	int rect_end_x=(int)(rect.endx);
-	int rect_end_y=(int)(rect.endy);
-	draw_rect(buffer,rect_start_x,rect_start_y,rect_end_x,rect_end_y,color);
+	rect.startx+=render_current_x;
+	rect.endx+=render_current_x;
+	rect.starty+=render_current_y;
+	rect.endy+=render_current_y;
+
+	RC_rect* rc_rect=push_struct(render_queue,RC_rect);
+	rc_rect->tag=RT_rect;
+	rc_rect->rect=rect;
+	u32 b=color&0xff;
+	u32 g=(color>>8)&0xff;
+	u32 r=(color>>16)&0xff;
+	u32 a=(color>>24)&0xff;
+	u32 new_color=(a<<24)|(b<<16)|(g<<8)|r;
+	rc_rect->color=new_color;
+//	draw_rect(buffer,rect_start_x,rect_start_y,rect_end_x,rect_end_y,color);
 
 }
 void render_map(Map* map,Player* player, PictureBuffer* sub_screen)
@@ -40,7 +53,6 @@ void render_map(Map* map,Player* player, PictureBuffer* sub_screen)
 	float pixel_per_tile_x=(float)sub_screen->width/(float)width;
 	float pixel_per_tile_y=(float)sub_screen->height/(float)height;
 	Vec2 pixel_per_tile=vec2f(pixel_per_tile_x,pixel_per_tile_y);
-#pragma omp parallel for
 	for(int y=0;y<height;y++)
 	{
 		for(int x=0;x<width;x++) 
@@ -156,29 +168,24 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_data->player.pos=vec2f(5.5f,5.5f);
 		game_data->player.look_dir=Normalize(vec2f(1,1));
 		game_data->player.fov=2;
+		render_queue=game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,5*1024*1024);
+		
 	}
-
+	clear_memory_buffer(render_queue);
+	render_current_x=0;
+	render_current_y=0;
 
 	PictureBuffer* screen=game_memory->draw_context.screen;
 	PictureBuffer map_screen=*screen;
 	map_screen.width=screen->width-(screen->width/2+11);
 	map_screen.picture+=(screen->width/2+11);
-	for(int y=0;y<screen->height;y++)
-	{
-		for(int x=screen->width/2-10;x<screen->width/2+11;x++)
-		{
-			int index=x+y*screen->pitch;
-			screen->picture[index]=0xffffffff;
-		}
-	}
-	for(int y=0;y<map_screen.height;y++)
-	{
-		for(int x=0;x<map_screen.width;x++)
-		{ 
-			int index=x+y*map_screen.pitch;
-			map_screen.picture[index]=0x000000ff;
-		}
-	}
+	Rect rect;
+	rect.startx=(float)(screen->width/2-10);
+	rect.endx=(float)(screen->width/2+11);
+	rect.starty=0;
+	rect.endy=(float)(screen->height);
+	draw_rect(screen,rect,0xffffffff);
+	render_current_x=screen->width/2+11;
 	render_map(game_data->wall_tile_map,&game_data->player,&map_screen);
 
 	Vec2 mouse_pos=input->mouse_pos;
@@ -230,23 +237,23 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 	Vec2 pixel_per_tile=vec2f(pixel_per_tile_x,pixel_per_tile_y);
 	Vec2 player_pos=player->pos;
 	Vec2 intersection_point=find_intersection_point(map,player,player->look_dir);
-	Rect rect=make_rect_from_center_width_height(HaddamardProduct(intersection_point,pixel_per_tile),10,10);
+	rect=make_rect_from_center_width_height(HaddamardProduct(intersection_point,pixel_per_tile),10,10);
 	draw_rect(&map_screen,rect,0x22ff22ff);
 
 	PictureBuffer wolf_screen=*screen;
 	wolf_screen.width=screen->width-(screen->width/2+11);
 	
+	render_current_x=0;
 	float fov_per_pixel=player->fov/wolf_screen.width;
 
 	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,0,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11222222);
 	draw_rect(&wolf_screen,make_rect_from_mincorner_width_height(0,(float)wolf_screen.height/2.f,(float)wolf_screen.width,(float)wolf_screen.height/2.f),0x11335533);
-#pragma omp parallel for
 	for(int x=0;x<wolf_screen.width;x++)
 	{
 		Vec2 dir=player->look_dir+(fov_per_pixel*(x-wolf_screen.width/2))*Perp(player->look_dir);
 		Vec2 intersection_point=find_intersection_point(map,player,dir);
 		Rect rect=make_rect_from_center_width_height(HaddamardProduct(intersection_point,pixel_per_tile),10,10);
-		draw_rect(&map_screen,rect,0x22ff22ff);
+		//draw_rect(&map_screen,rect,0x22ff22ff);
 		
 		float z=DotProduct(intersection_point-player->pos,player->look_dir);
 		//paint the screen so 0.1 dist will be full screen;
@@ -257,17 +264,17 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		}
 		Rect wolf_rect=make_rect_from_center_width_height((float)x,(float)wolf_screen.height/2.f,1.f,height);
 		if((int)(intersection_point.x*10+0.5)%2)
+		{
 			draw_rect(&wolf_screen,wolf_rect,0x22ff22ff);
-
+		}
 		else if((int)(intersection_point.y*10+0.5)%2)
 		{
 			draw_rect(&wolf_screen,wolf_rect,0xffff2222);
 		}
 		else
+		{
 			draw_rect(&wolf_screen,wolf_rect,0x22ffffff);
-
-
+		}
 	}
-
 }
 

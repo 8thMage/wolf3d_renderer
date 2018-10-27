@@ -116,7 +116,7 @@ void render(MemoryBuffer* queue)
 		VirtualFree(vs,0,MEM_RELEASE);
 		GLuint theProgram= CreateProgram(shader_handles,2);
 		MBalls_program=(umo)theProgram;
-		glUseProgram(theProgram);
+		//glUseProgram(theProgram);
 		error = glGetError();
 		Assert(!error);
 	}
@@ -139,15 +139,36 @@ void render(MemoryBuffer* queue)
 		Assert(!error);
 	}
 	
-	Matrix4 matrix={};
+	//Matrix4 matrix={};
 
-	matrix.array[0] = 1.f;
-	matrix.array[5] = 1.f;
-	matrix.array[10] = -1;
-	matrix.array[11] = -1;
-	matrix.array[14] = -1;
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	r32 a=2.0f/(r32)screen_dim.x;
+	r32 b=-2.0f/(r32)screen_dim.y;
+	r32 matrix[16]=
+	{
+		a,  0, 0, 0,
+		0,  b, 0, 0,
+		0,  0, 1, 0,
+		-1, 1,0, 1
+	};
 
-	Matrix4 projection_transform_matrix=matrix;
+	glMatrixMode(GL_PROJECTION);
+	glLoadMatrixf(matrix);
+
+	{r32 matrix[16]=
+	{
+		0,  0, 0, 1,
+		0,  0, 1, 0,
+		0,  1, 0, 0,
+		1, 0,0, 0
+	};
+
+	glMatrixMode(GL_COLOR);
+	//glLoadMatrixf(matrix);
+
+	}
+//	Matrix4 projection_transform_matrix=matrix;
 
 	umo current_read_location=queue->original_start;
 	while(current_read_location!=queue->place)
@@ -267,9 +288,39 @@ void render(MemoryBuffer* queue)
 				glEnd();
 				break;
 			}
-
-
+			case RT_rect:
+			{
+				glBegin(GL_QUADS);
+					RC_rect* rect=(RC_rect*) tag;
+	//			glVertex2f(-0.7,-0.7);
+	//			glColor3ubv((GLubyte*)&rect->color);
+	//			glVertex2f(0.7,-0.7);
+	//			glVertex2f(0.7,0.7);
+				do	
+				{
+					RC_rect* rect=(RC_rect*) tag;
+					float screen_ratio=screen_dim.y/screen_dim.x;
+				/*	glVertex2f(2*rect->rect.startx/(float)screen_dim.x-1,2.f*rect->rect.starty/(float)screen_dim.y-1);
+					glVertex2f(2*rect->rect.endx/(float)screen_dim.x-1,2.f*rect->rect.starty/(float)screen_dim.y-1);
+					glVertex2f(2*rect->rect.endx/(float)screen_dim.x-1,2.f*rect->rect.endy/(float)screen_dim.y-1);
+					glColor3ubv((GLubyte*)&rect->color);
+					glVertex2f(2*rect->rect.startx/(float)screen_dim.x-1,2.f*rect->rect.endy/(float)screen_dim.y-1);
+					*/
+					glColor3ubv((GLubyte*)&rect->color);
+					glVertex2f(rect->rect.startx,rect->rect.starty);
+					glVertex2f(rect->rect.endx,rect->rect.starty);
+					glVertex2f(rect->rect.endx,rect->rect.endy);
+					glVertex2f(rect->rect.startx,rect->rect.endy);
+					
+					current_read_location+=sizeof(RC_rect);
+					tag=(Render_tag*)current_read_location;
+				//}while(false&&*tag==RT_rect);
+				}while(*tag==RT_rect);
+				glEnd();
+				break;
+			}
 		}
+		break;
 	}
 	queue->place=queue->original_start;
 }

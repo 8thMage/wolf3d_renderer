@@ -700,7 +700,7 @@ int CALLBACK WinMain(
 	QueryPerformanceCounter(&t2);
 	Input input = {};
 
-	//initOpengl(window);
+	initOpengl(window);
 	//GameState gamestate = {};
 
 	u64 temp_memory_size = 250 MB;
@@ -769,7 +769,7 @@ int CALLBACK WinMain(
 	header.biCompression=BI_RGB;
 	header.biSizeImage=0;
 	BITMAPINFO info={header,0};
-	HBITMAP new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
+//	HBITMAP new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
 	while (running)
 	{
 		t1 = t2;
@@ -897,7 +897,7 @@ int CALLBACK WinMain(
 			//if(screen.picture)
 			//	VirtualFree(screen.picture,0,MEM_RELEASE);
 			//screen.picture=(unsigned int*)VirtualAlloc(0,width*height*4, MEM_COMMIT, PAGE_READWRITE);
-			DeleteObject(new_bitmap);
+			//DeleteObject(new_bitmap);
 			BITMAPINFOHEADER header={};
 			header.biSize=sizeof(header);
 			header.biWidth=screen.width;
@@ -907,7 +907,7 @@ int CALLBACK WinMain(
 			header.biCompression=BI_RGB;
 			header.biSizeImage=0;
 			BITMAPINFO info={header,0};
-			new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
+			//new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
 
 			resized = false;
 
@@ -923,18 +923,19 @@ int CALLBACK WinMain(
 		goGame(&input, &game_memory,&read_file);
 		Vec2 dpi = vec2f(dpixf, dpiyf);
 
-		//render(game_memory.render_queue);
+		render(game_memory.render_queue);
 
 		if(!is_playing)
-		{	//push_to_screen_opengl(screen, hdc);
+		{	
+			push_to_screen_opengl(screen, hdc);
 		}
 		HDC hdcNew=CreateCompatibleDC(hdc);
 		u32* screen_picture=game_memory.draw_context.screen->picture;
 	
 		//HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
 		game_memory.draw_context.screen->pitch=game_memory.draw_context.screen->width;
-		HBITMAP hbmOld = (HBITMAP)SelectObject(hdcNew,new_bitmap);
-		BitBlt(hdc,0,0,game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,hdcNew,0,0,SRCCOPY);
+		//HBITMAP hbmOld = (HBITMAP)SelectObject(hdcNew,new_bitmap);
+	//	BitBlt(hdc,0,0,game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,hdcNew,0,0,SRCCOPY);
 
 
 		DeleteDC(hdcNew);

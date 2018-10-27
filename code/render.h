@@ -3,7 +3,8 @@ enum Render_tag
 	RT_MBalls,
 	RT_Balls,
 	RT_Dust,
-	RT_Triangle
+	RT_Triangle,
+	RT_rect
 };
 
 struct RC_MBalls
@@ -30,4 +31,11 @@ struct RC_Triangle
 {
 	Render_tag tag;
 	Vec2 vrts[3];
+};
+
+struct RC_rect
+{
+	Render_tag tag;
+	Rect rect;
+	u32 color;
 };

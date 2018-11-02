@@ -4,7 +4,10 @@ enum Render_tag
 	RT_Balls,
 	RT_Dust,
 	RT_Triangle,
-	RT_rect
+	RT_Triangle_normals,
+	RT_start_tri_arr,
+	RT_rect,
+	RT_end_rect
 };
 
 struct RC_MBalls
@@ -30,7 +33,18 @@ struct RC_Dust
 struct RC_Triangle
 {
 	Render_tag tag;
-	Vec2 vrts[3];
+	Vec3 vrts[3];
+};
+struct Render_triangle
+{
+	Vec3 vrts[3];
+	Vec3 normals[3];
+};
+struct RC_Triangle_normals
+{
+	Render_tag tag;
+	Vec3 vrts[3];
+	Vec3 normals[3];
 };
 
 struct RC_rect
@@ -38,4 +52,13 @@ struct RC_rect
 	Render_tag tag;
 	Rect rect;
 	u32 color;
+};
+struct RC_end_rect
+{
+	Render_tag tag;
+};
+struct RC_start_tri_arr
+{
+	Render_tag tag;
+	int count;
 };

@@ -1,6 +1,7 @@
 #include "game.h"
 #include "render.h"
 #include "stdio.h"
+#include "obj_reader.h"
 Vec2 screen_dim_;
 MemoryBuffer* render_queue;
 int render_current_x;
@@ -45,6 +46,35 @@ void draw_rect(PictureBuffer* buffer,Rect rect,u32 color)
 	rc_rect->color=new_color;
 //	draw_rect(buffer,rect_start_x,rect_start_y,rect_end_x,rect_end_y,color);
 
+}
+void push_triangle_to_render(Vec3 v0,Vec3 v1,Vec3 v2)
+{
+	RC_Triangle* rc_tri=push_struct(render_queue,RC_Triangle);
+	rc_tri->tag=RT_Triangle;
+	rc_tri->vrts[0]=v0;
+	rc_tri->vrts[1]=v1;
+	rc_tri->vrts[2]=v2;
+}
+void push_triangle_normals_tag_to_render(Vec3 v0,Vec3 v1,Vec3 v2,Vec3 n0,Vec3 n1,Vec3 n2)
+{
+	RC_Triangle_normals* rc_tri=push_struct(render_queue,RC_Triangle_normals);
+	rc_tri->tag=RT_Triangle_normals;
+	rc_tri->vrts[0]=v0;
+	rc_tri->vrts[1]=v1;
+	rc_tri->vrts[2]=v2;
+	rc_tri->normals[0]=n0;
+	rc_tri->normals[1]=n1;
+	rc_tri->normals[2]=n2;
+}
+void push_triangle_normals_to_render(Vec3 v0,Vec3 v1,Vec3 v2,Vec3 n0,Vec3 n1,Vec3 n2)
+{
+	Render_triangle* rc_tri=push_struct(render_queue,Render_triangle);
+	rc_tri->vrts[0]=v0;
+	rc_tri->vrts[1]=v1;
+	rc_tri->vrts[2]=v2;
+	rc_tri->normals[0]=n0;
+	rc_tri->normals[1]=n1;
+	rc_tri->normals[2]=n2;
 }
 void render_map(Map* map,Player* player, PictureBuffer* sub_screen)
 {
@@ -144,7 +174,7 @@ Vec2 find_intersection_point(Map* map,Player* player,Vec2 dir)
 		}
 	}
 }
-void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
+void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file,Obj_file* obj_file)
 {
 	Game_data* game_data=game_memory->game_data;
 	screen_dim_=vec2f((float)game_memory->draw_context.screen->width,(float)game_memory->draw_context.screen->height);
@@ -169,7 +199,40 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		game_data->player.look_dir=Normalize(vec2f(1,1));
 		game_data->player.fov=2;
 		render_queue=game_memory->render_queue=new_memory_buffer(game_memory->const_buffer,5*1024*1024);
-		
+	
+		if(obj_file)
+		{
+			int* face_length=(int*)obj_file->faces_length.original_start;
+			Face_v* face_v=(Face_v*)obj_file->faces_v.original_start;
+			Vec3* vertices=(Vec3*)obj_file->vertices.original_start;
+			int vertices_length=(int)(obj_file->vertices.place-obj_file->vertices.original_start)/(int)sizeof(Vec3);
+			float max_x=-FLT_MAX;
+			float max_y=-FLT_MAX;
+			float max_z=-FLT_MAX;
+			float min_x=FLT_MAX;
+			float min_y=FLT_MAX;
+			float min_z=FLT_MAX;
+			for(int i=0;i<vertices_length;i++)
+			{
+				max_x=Max(max_x,vertices[i].x);
+				max_y=Max(max_y,vertices[i].y);
+				max_z=Max(max_z,vertices[i].z);
+
+				min_x=Min(min_x,vertices[i].x);
+				min_y=Min(min_y,vertices[i].y);
+				min_z=Min(min_z,vertices[i].z);
+			}
+			for(int i=0;i<vertices_length;i++)
+			{
+				vertices[i].x-=min_x;
+				vertices[i].x/=(max_x-min_x);
+				vertices[i].y-=min_y;
+				vertices[i].y/=(max_y-min_y);
+				vertices[i].z-=min_z;
+				vertices[i].z/=(max_z-min_z);
+	
+			}
+		}
 	}
 	clear_memory_buffer(render_queue);
 	render_current_x=0;
@@ -275,6 +338,52 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file)
 		{
 			draw_rect(&wolf_screen,wolf_rect,0x22ffffff);
 		}
+	}
+	RC_end_rect* rc_end_rect=push_struct(render_queue,RC_end_rect);
+	rc_end_rect->tag=RT_end_rect;
+	//push_triangle_to_render(vec3f(0,0,1),vec3f(0,1,1),vec3f(1,0,1));
+	//push_triangle_to_render(vec3f(0,0,1),vec3f(1,0,1),vec3f(0,1,1));
+	//static int x=0;
+	//x=0;
+	RC_start_tri_arr* rc_start_tri_arr=push_struct(render_queue,RC_start_tri_arr);
+	rc_start_tri_arr->tag=RT_start_tri_arr;
+	int* tri_counter=&rc_start_tri_arr->count;
+	*tri_counter=0;
+	if(obj_file)
+	{
+		int* face_length=(int*)obj_file->faces_length.original_start;
+		Face_v* face_v=(Face_v*)obj_file->faces_v.original_start;
+		Vec3* vertices=(Vec3*)obj_file->vertices.original_start;
+		Vec3* normals=(Vec3*)obj_file->normals.original_start;
+		int vertices_length=(int)(obj_file->vertices.place-obj_file->vertices.original_start)/(int)sizeof(Vec3);
+		while((umo)face_length!=obj_file->faces_length.place)
+		{
+			int len=*face_length;
+			Vec3 v0=vertices[face_v[0].v_index-1];
+			Vec3 n0=- normals[face_v[0].n_index-1];
+			Vec3 v1=vertices[face_v[1].v_index-1];
+			Vec3 n1=-normals[face_v[1].n_index-1];
+			Vec3 v2;
+			Vec3 n2;
+			do
+			{
+			
+					v2=vertices[face_v[*face_length-len+2].v_index - 1];
+					n2=-normals[face_v[*face_length-len+2].n_index-1];
+
+					push_triangle_normals_to_render(v0,v1,v2,n0,n1,n2);
+					//push_triangle_to_render(v0,v1,v2);
+					//if(n0.z<0) break;
+					len--;
+					v1 = v2;
+					n1 = n2;
+					(*tri_counter)++;
+			}while(len>=3);
+			face_v+=*face_length;
+			face_length++;
+		//if(len>=3) break;
+		}
+		//Assert((umo)face_v==obj_file->faces_v.place);
 	}
 }
 

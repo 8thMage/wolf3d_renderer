@@ -43,4 +43,5 @@ struct GameMemory
 	Game_data* game_data;
 	bool paused;
 };
-typedef void goGametype (Input*,GameMemory*,read_file_type* read_file);
+struct Obj_file;
+typedef void goGametype (Input*,GameMemory*,read_file_type* read_file,Obj_file* obj_file);

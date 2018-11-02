@@ -59,7 +59,7 @@ struct Extensible_buffer
 	umo original_start;
 };
 //struct PlatformStruct;
-/* static void* _push_struct(Extensible_buffer* buffer, umo length)
+ static void* _push_struct(Extensible_buffer* buffer, umo length)
 {
 	while(buffer->place+length>buffer->original_start+buffer->length)
 	{
@@ -89,7 +89,7 @@ static void clear_memory_buffer(Extensible_buffer* buffer)
 {
 	buffer->place=buffer->original_start;
 }
-*/
+/*
 struct Circular_buffer
 {
 	umo place_write;

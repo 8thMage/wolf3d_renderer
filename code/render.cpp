@@ -98,9 +98,9 @@ void render(MemoryBuffer* queue)
 	glClearColor(0.7,0.7,0.7,1);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFlush();
-	//glEnable(GL_DEPTH_TEST);
-	//glClearDepth(10000);
-	//glClear(GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glClearDepth(10000);
+	glClear(GL_DEPTH_BUFFER_BIT);
 	if(!MBalls_program)
 	{
 		char* fs;
@@ -129,7 +129,7 @@ void render(MemoryBuffer* queue)
 		GLuint shader_handles[2];
 		read_file_alloc((u8*)"../code/tri.vs",&vs_length,(void**)&vs);
 		shader_handles[0]=CreateShader(GL_VERTEX_SHADER,vs,vs_length);
-		read_file_alloc((u8*)"../code/circle.fs",&fs_length,(void**)&fs);
+		read_file_alloc((u8*)"../code/tri.fs",&fs_length,(void**)&fs);
 		shader_handles[1]=CreateShader(GL_FRAGMENT_SHADER,fs,fs_length);
 		VirtualFree(fs,0,MEM_RELEASE);
 		VirtualFree(vs,0,MEM_RELEASE);
@@ -140,35 +140,40 @@ void render(MemoryBuffer* queue)
 	}
 	
 	//Matrix4 matrix={};
+	error = glGetError();
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	r32 a=2.0f/(r32)screen_dim.x;
 	r32 b=-2.0f/(r32)screen_dim.y;
+	r32 screen_ratio=(r32)screen_dim.y/(r32)screen_dim.x;
+
 	r32 matrix[16]=
 	{
-		a,  0, 0, 0,
-		0,  b, 0, 0,
-		0,  0, 1, 0,
-		-1, 1,0, 1
+		2*screen_ratio,  0, 0, 0,
+		0,  2, 0, 0,
+		0,  0, 1, 1,
+		-screen_ratio, -1,0, 1
 	};
 
-	glMatrixMode(GL_PROJECTION);
-	glLoadMatrixf(matrix);
+	//glMatrixMode(GL_PROJECTION);
+	//glLoadMatrixf(matrix);
+	error = glGetError();
 
-	{r32 matrix[16]=
+	{/*r32 matrix[16]=
 	{
 		0,  0, 0, 1,
 		0,  0, 1, 0,
 		0,  1, 0, 0,
 		1, 0,0, 0
 	};
-
-	glMatrixMode(GL_COLOR);
+*/
+	//glMatrixMode(GL_COLOR);
 	//glLoadMatrixf(matrix);
 
 	}
 //	Matrix4 projection_transform_matrix=matrix;
+	error = glGetError();
 
 	umo current_read_location=queue->original_start;
 	while(current_read_location!=queue->place)
@@ -219,13 +224,77 @@ void render(MemoryBuffer* queue)
 				current_read_location+=sizeof(RC_Triangle);
 				RC_Triangle* tri=(RC_Triangle*) tag;
 				glBegin(GL_TRIANGLES);
-				glColor4f(1,1,1,1);
-				glVertex2fv(tri->vrts[1].E);
-				glVertex2fv(tri->vrts[0].E);
-				glVertex2fv(tri->vrts[2].E);
+				Vec3 n=-Normalize(CrossProduct(tri->vrts[0]-tri->vrts[1],tri->vrts[0]-tri->vrts[2]));
+				glColor4f(n.z+0.1f,n.z+0.1f,n.z+0.1f,1);
+				glVertex3fv(tri->vrts[0].xyz);
+				glVertex3fv(tri->vrts[1].xyz);
+				glVertex3fv(tri->vrts[2].xyz);
 				glEnd();
 				break;
 			}
+			case RT_Triangle_normals:
+			{
+				current_read_location+=sizeof(RC_Triangle_normals);
+				RC_Triangle_normals* tri=(RC_Triangle_normals*) tag;
+				glBegin(GL_TRIANGLES);
+				glColor4f(tri->normals[0].z+0.1f,tri->normals[0].z+0.1f,tri->normals[0].z+0.1f,1);
+				glVertex3fv(tri->vrts[0].xyz);
+				glColor4f(tri->normals[1].z+0.1f,tri->normals[1].z+0.1f,tri->normals[1].z+0.1f,1);
+				glVertex3fv(tri->vrts[1].xyz);
+				glColor4f(tri->normals[2].z+0.1f,tri->normals[2].z+0.1f,tri->normals[2].z+0.1f,1);
+				glVertex3fv(tri->vrts[2].xyz);
+				glEnd();
+				break;
+			}
+			case RT_start_tri_arr:
+			{
+				current_read_location+=sizeof(RC_start_tri_arr);
+				RC_start_tri_arr* tris=(RC_start_tri_arr*) tag;
+				Render_triangle* tri_arr=(Render_triangle*) current_read_location;
+				GLuint vbo;
+				error = glGetError();
+				glUseProgram(Ball_program);
+				glGenBuffers(1,&vbo);
+				glBindBuffer(GL_ARRAY_BUFFER,vbo);
+				error = glGetError();
+
+				glBufferData(GL_ARRAY_BUFFER,sizeof(Render_triangle)*tris->count,tri_arr,GL_STATIC_COPY);
+				glBindBuffer(GL_ARRAY_BUFFER, vbo);
+				error = glGetError();
+				error = glGetError();
+				glEnableVertexAttribArray(0);
+				error = glGetError();
+				glEnableVertexAttribArray(1);
+				error = glGetError();
+				glVertexAttribPointer(0,3,GL_FLOAT, GL_FALSE, sizeof(Render_triangle),0);
+				glVertexAttribPointer(1,3,GL_FLOAT, GL_FALSE, sizeof(Render_triangle),(void*)(3*sizeof(Vec3)));
+				error = glGetError();
+				glBindBuffer(GL_ARRAY_BUFFER, vbo);
+				GLuint mat_uniform=glGetUniformLocation(Ball_program,"matrix");
+				error = glGetError();
+				glUniformMatrix4fv(mat_uniform,1, false,matrix);
+				glDrawArrays(GL_TRIANGLES,0,tris->count);
+
+				glUseProgram(0);
+			/*	glBegin(GL_TRIANGLES);
+				for(int i=0;i<tris->count;i++)
+				{
+					Render_triangle* tri=tri_arr+i;
+					glColor4f(tri->normals[0].z+0.1f,tri->normals[0].z+0.1f,tri->normals[0].z+0.1f,1);
+					glVertex3fv(tri->vrts[0].xyz);
+					glColor4f(tri->normals[1].z+0.1f,tri->normals[1].z+0.1f,tri->normals[1].z+0.1f,1);
+					glVertex3fv(tri->vrts[1].xyz);
+					glColor4f(tri->normals[2].z+0.1f,tri->normals[2].z+0.1f,tri->normals[2].z+0.1f,1);
+					glVertex3fv(tri->vrts[2].xyz);
+				}
+				glEnd();*/
+				glDisableVertexAttribArray(0);
+				glDisableVertexAttribArray(1);
+				glBindBuffer(GL_ARRAY_BUFFER,0);
+				current_read_location+=sizeof(Render_triangle)*tris->count;
+				break;
+			}
+
 			case RT_Balls:
 			{
 				current_read_location+=sizeof(RC_Balls);
@@ -306,21 +375,25 @@ void render(MemoryBuffer* queue)
 					glColor3ubv((GLubyte*)&rect->color);
 					glVertex2f(2*rect->rect.startx/(float)screen_dim.x-1,2.f*rect->rect.endy/(float)screen_dim.y-1);
 					*/
-					glColor3ubv((GLubyte*)&rect->color);
+				/*	glColor3ubv((GLubyte*)&rect->color);
 					glVertex2f(rect->rect.startx,rect->rect.starty);
 					glVertex2f(rect->rect.endx,rect->rect.starty);
 					glVertex2f(rect->rect.endx,rect->rect.endy);
 					glVertex2f(rect->rect.startx,rect->rect.endy);
-					
+					*/
 					current_read_location+=sizeof(RC_rect);
 					tag=(Render_tag*)current_read_location;
-				//}while(false&&*tag==RT_rect);
 				}while(*tag==RT_rect);
 				glEnd();
 				break;
 			}
+			case RT_end_rect:
+			{
+				current_read_location+=sizeof(RC_end_rect);
+				break;
+			}
+
 		}
-		break;
 	}
 	queue->place=queue->original_start;
 }

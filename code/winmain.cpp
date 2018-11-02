@@ -15,6 +15,7 @@ static Rect window_rect;
 static bool read_file_alloc(u8* path,s32* length,void** file);
 #include "render.h"
 #include "render.cpp"
+#include "obj_reader.h"
 
 static bool running=true;;
 static bool resized=false;
@@ -540,9 +541,9 @@ void initOpengl(HWND window)
   glUniformMatrix3x4fv=(PFNGLUNIFORMMATRIX3X4FVPROC)wglGetProcAddress("glUniformMatrix3x4fv");
   glDrawArraysInstanced=(PFNGLDRAWARRAYSINSTANCEDPROC)wglGetProcAddress("glDrawArraysInstanced");
   
-  //glEnable(GL_CULL_FACE);
-  //glCullFace(GL_BACK);
-  //glFrontFace(GL_CW);
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+  glFrontFace(GL_CW);
 
   
 }
@@ -732,12 +733,11 @@ int CALLBACK WinMain(
 	screen = { 0,0,width,height,width };
 	//screen.picture=(u32*)alloc_memory(width*height*4);
 	HANDLE input_file = 0;
-	int zlib_file_length=0;
-	void* zlib_file_buffer=0;
 	HANDLE input_file2 = 0;
-	//Assert(read_file("../Future CITY 4.4/region/r.0.0.mca",game_memory.temp_buffer,&zlib_file_length,&zlib_file_buffer));
-	//read_and_parse_region_buffer(zlib_file_buffer,zlib_file_length);
-
+	int obj_file_length=0;
+	void* obj_file_buffer=0;
+	Assert(read_file_alloc((u8*)"../code/apple_textured_obj.obj",&obj_file_length,&obj_file_buffer));
+	Obj_file obj_file=parse_obj_file(obj_file_buffer,obj_file_length);
 	//HBITMAP BitmapHandle= CreateBitmap(game_memory.draw_context.screen->width,game_memory.draw_context.screen->height,1,32,(char*)game_memory.draw_context.screen->picture);
 	/*HBITMAP CreateDIBSection(
 	  HDC              hdc,
@@ -770,6 +770,7 @@ int CALLBACK WinMain(
 	header.biSizeImage=0;
 	BITMAPINFO info={header,0};
 //	HBITMAP new_bitmap=CreateDIBSection(hdc,&info,DIB_RGB_COLORS,(void**)&screen.picture,0,0);
+
 	while (running)
 	{
 		t1 = t2;
@@ -920,7 +921,7 @@ int CALLBACK WinMain(
 		game_memory.draw_context.screen=&screen;
 
 
-		goGame(&input, &game_memory,&read_file);
+		goGame(&input, &game_memory,&read_file,&obj_file);
 		Vec2 dpi = vec2f(dpixf, dpiyf);
 
 		render(game_memory.render_queue);

@@ -38,6 +38,7 @@ static PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
 static PFNGLUNIFORMMATRIX4X3FVPROC glUniformMatrix4x3fv;
 static PFNGLUNIFORMMATRIX3X4FVPROC glUniformMatrix3x4fv;
 static PFNGLDRAWARRAYSINSTANCEDPROC glDrawArraysInstanced;
+static PFNGLGETVERTEXATTRIBIIVPROC glGetVertexAttribiv;
 
 
 GLuint CreateShader(GLenum eShaderType, const char* shader_file,int shader_length )
@@ -82,7 +83,14 @@ GLuint CreateProgram(GLuint* shaders,int count)
 	}
 	return program;
 }
+
 GLenum error;
+void check_glerror()
+{
+	error = glGetError();
+	Assert(!error);
+	
+}
 
 GLuint MBalls_program;
 GLuint Ball_program;
@@ -93,14 +101,15 @@ void render(MemoryBuffer* queue)
 	Vec2 screen_dim=get_dimensions(window_rect)	;
 	glViewport(0,0,(int)screen_dim.x,(int)screen_dim.y);
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
-
-	glClearColor(0.7,0.7,0.7,1);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glFlush();
 	glEnable(GL_DEPTH_TEST);
+	glBlendFunc(GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+check_glerror();
+	glClearColor(0.7,0.7,0.7,1);
 	glClearDepth(10000);
-	glClear(GL_DEPTH_BUFFER_BIT);
+check_glerror();
+	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+check_glerror();
+	glFlush();
 	if(!MBalls_program)
 	{
 		char* fs;
@@ -117,9 +126,7 @@ void render(MemoryBuffer* queue)
 		GLuint theProgram= CreateProgram(shader_handles,2);
 		MBalls_program=(umo)theProgram;
 		//glUseProgram(theProgram);
-		error = glGetError();
-		Assert(!error);
-	}
+}
 	if(!Ball_program)
 	{
 		char* fs;
@@ -135,12 +142,12 @@ void render(MemoryBuffer* queue)
 		VirtualFree(vs,0,MEM_RELEASE);
 		GLuint theProgram= CreateProgram(shader_handles,2);
 		Ball_program=(umo)theProgram;
-		error = glGetError();
-		Assert(!error);
+		glUseProgram(Ball_program);
+check_glerror();
 	}
 	
 	//Matrix4 matrix={};
-	error = glGetError();
+check_glerror();
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -158,7 +165,7 @@ void render(MemoryBuffer* queue)
 
 	//glMatrixMode(GL_PROJECTION);
 	//glLoadMatrixf(matrix);
-	error = glGetError();
+check_glerror();
 
 	{/*r32 matrix[16]=
 	{
@@ -173,12 +180,13 @@ void render(MemoryBuffer* queue)
 
 	}
 //	Matrix4 projection_transform_matrix=matrix;
-	error = glGetError();
 
+	check_glerror();
 	umo current_read_location=queue->original_start;
 	while(current_read_location!=queue->place)
 	{
 		Render_tag* tag=(Render_tag*)current_read_location;
+check_glerror();
 		switch(*tag)
 		{
 			case RT_MBalls:
@@ -251,46 +259,33 @@ void render(MemoryBuffer* queue)
 				current_read_location+=sizeof(RC_start_tri_arr);
 				RC_start_tri_arr* tris=(RC_start_tri_arr*) tag;
 				Render_triangle* tri_arr=(Render_triangle*) current_read_location;
-				GLuint vbo;
-				error = glGetError();
+				GLuint* vbo=tris->vbo;
 				glUseProgram(Ball_program);
-				glGenBuffers(1,&vbo);
-				glBindBuffer(GL_ARRAY_BUFFER,vbo);
-				error = glGetError();
-
-				glBufferData(GL_ARRAY_BUFFER,sizeof(Render_triangle)*tris->count,tri_arr,GL_STATIC_COPY);
-				glBindBuffer(GL_ARRAY_BUFFER, vbo);
-				error = glGetError();
-				error = glGetError();
-				glEnableVertexAttribArray(0);
-				error = glGetError();
-				glEnableVertexAttribArray(1);
-				error = glGetError();
-				glVertexAttribPointer(0,3,GL_FLOAT, GL_FALSE, sizeof(Render_triangle),0);
-				glVertexAttribPointer(1,3,GL_FLOAT, GL_FALSE, sizeof(Render_triangle),(void*)(3*sizeof(Vec3)));
-				error = glGetError();
-				glBindBuffer(GL_ARRAY_BUFFER, vbo);
-				GLuint mat_uniform=glGetUniformLocation(Ball_program,"matrix");
-				error = glGetError();
-				glUniformMatrix4fv(mat_uniform,1, false,matrix);
-				glDrawArrays(GL_TRIANGLES,0,tris->count);
-
-				glUseProgram(0);
-			/*	glBegin(GL_TRIANGLES);
-				for(int i=0;i<tris->count;i++)
+				if(!*vbo)
 				{
-					Render_triangle* tri=tri_arr+i;
-					glColor4f(tri->normals[0].z+0.1f,tri->normals[0].z+0.1f,tri->normals[0].z+0.1f,1);
-					glVertex3fv(tri->vrts[0].xyz);
-					glColor4f(tri->normals[1].z+0.1f,tri->normals[1].z+0.1f,tri->normals[1].z+0.1f,1);
-					glVertex3fv(tri->vrts[1].xyz);
-					glColor4f(tri->normals[2].z+0.1f,tri->normals[2].z+0.1f,tri->normals[2].z+0.1f,1);
-					glVertex3fv(tri->vrts[2].xyz);
+					glGenBuffers(1,vbo);
+					glBindBuffer(GL_ARRAY_BUFFER,*vbo);
+					glBufferData(GL_ARRAY_BUFFER,sizeof(Render_triangle)*tris->count,tri_arr,GL_STATIC_COPY);
+					check_glerror();
 				}
-				glEnd();*/
+				glBindBuffer(GL_ARRAY_BUFFER,*vbo);
+				glEnableVertexAttribArray(0);
+				int res=0;
+				check_glerror();
+				glEnableVertexAttribArray(1);
+				glVertexAttribPointer(0,3,GL_FLOAT, GL_FALSE, 24,0);
+				glVertexAttribPointer(1,3,GL_FLOAT, GL_FALSE, 24,(void*)12);
+				GLuint mat_uniform=glGetUniformLocation(Ball_program,"matrix");
+				glUniformMatrix4fv(mat_uniform,1, false,matrix);
+				static float time=0;
+				GLuint time_uniform=glGetUniformLocation(Ball_program,"time");
+				glUniform1f(time_uniform,time++);
+				glDrawArrays(GL_TRIANGLES,0,3*tris->count);
+				glUseProgram(0);
 				glDisableVertexAttribArray(0);
 				glDisableVertexAttribArray(1);
 				glBindBuffer(GL_ARRAY_BUFFER,0);
+				check_glerror();
 				current_read_location+=sizeof(Render_triangle)*tris->count;
 				break;
 			}
@@ -359,17 +354,17 @@ void render(MemoryBuffer* queue)
 			}
 			case RT_rect:
 			{
-				glBegin(GL_QUADS);
+				/*glBegin(GL_QUADS);
 					RC_rect* rect=(RC_rect*) tag;
 	//			glVertex2f(-0.7,-0.7);
 	//			glColor3ubv((GLubyte*)&rect->color);
 	//			glVertex2f(0.7,-0.7);
-	//			glVertex2f(0.7,0.7);
+	//			glVertex2f(0.7,0.7);*/
 				do	
 				{
-					RC_rect* rect=(RC_rect*) tag;
+					/*RC_rect* rect=(RC_rect*) tag;
 					float screen_ratio=screen_dim.y/screen_dim.x;
-				/*	glVertex2f(2*rect->rect.startx/(float)screen_dim.x-1,2.f*rect->rect.starty/(float)screen_dim.y-1);
+					glVertex2f(2*rect->rect.startx/(float)screen_dim.x-1,2.f*rect->rect.starty/(float)screen_dim.y-1);
 					glVertex2f(2*rect->rect.endx/(float)screen_dim.x-1,2.f*rect->rect.starty/(float)screen_dim.y-1);
 					glVertex2f(2*rect->rect.endx/(float)screen_dim.x-1,2.f*rect->rect.endy/(float)screen_dim.y-1);
 					glColor3ubv((GLubyte*)&rect->color);
@@ -384,7 +379,7 @@ void render(MemoryBuffer* queue)
 					current_read_location+=sizeof(RC_rect);
 					tag=(Render_tag*)current_read_location;
 				}while(*tag==RT_rect);
-				glEnd();
+			/*	glEnd();*/
 				break;
 			}
 			case RT_end_rect:
@@ -396,5 +391,6 @@ void render(MemoryBuffer* queue)
 		}
 	}
 	queue->place=queue->original_start;
+check_glerror();
 }
 

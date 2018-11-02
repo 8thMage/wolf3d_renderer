@@ -69,12 +69,12 @@ void push_triangle_normals_tag_to_render(Vec3 v0,Vec3 v1,Vec3 v2,Vec3 n0,Vec3 n1
 void push_triangle_normals_to_render(Vec3 v0,Vec3 v1,Vec3 v2,Vec3 n0,Vec3 n1,Vec3 n2)
 {
 	Render_triangle* rc_tri=push_struct(render_queue,Render_triangle);
-	rc_tri->vrts[0]=v0;
-	rc_tri->vrts[1]=v1;
-	rc_tri->vrts[2]=v2;
-	rc_tri->normals[0]=n0;
-	rc_tri->normals[1]=n1;
-	rc_tri->normals[2]=n2;
+	rc_tri->vrt0=v0;
+	rc_tri->vrt1=v1;
+	rc_tri->vrt2=v2;
+	rc_tri->normal0=n0;
+	rc_tri->normal1=n1;
+	rc_tri->normal2=n2;
 }
 void render_map(Map* map,Player* player, PictureBuffer* sub_screen)
 {
@@ -347,6 +347,8 @@ void go_game(Input* input, GameMemory* game_memory, read_file_type* read_file,Ob
 	//x=0;
 	RC_start_tri_arr* rc_start_tri_arr=push_struct(render_queue,RC_start_tri_arr);
 	rc_start_tri_arr->tag=RT_start_tri_arr;
+static unsigned int vbo=0;
+	rc_start_tri_arr->vbo=&vbo;
 	int* tri_counter=&rc_start_tri_arr->count;
 	*tri_counter=0;
 	if(obj_file)

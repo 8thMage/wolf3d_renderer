@@ -488,7 +488,7 @@ void initOpengl(HWND window)
   int attriblist[]={
     WGL_CONTEXT_MAJOR_VERSION_ARB,4,
     WGL_CONTEXT_MINOR_VERSION_ARB,0,
-    WGL_CONTEXT_FLAGS_ARB,0,
+    WGL_CONTEXT_FLAGS_ARB,WGL_CONTEXT_DEBUG_BIT_ARB ,
     WGL_CONTEXT_PROFILE_MASK_ARB,WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
     0
   };
@@ -540,7 +540,10 @@ void initOpengl(HWND window)
   glUniformMatrix4x3fv=(PFNGLUNIFORMMATRIX4X3FVPROC)wglGetProcAddress("glUniformMatrix4x3fv");
   glUniformMatrix3x4fv=(PFNGLUNIFORMMATRIX3X4FVPROC)wglGetProcAddress("glUniformMatrix3x4fv");
   glDrawArraysInstanced=(PFNGLDRAWARRAYSINSTANCEDPROC)wglGetProcAddress("glDrawArraysInstanced");
-  
+  glGetVertexAttribiv=(PFNGLGETVERTEXATTRIBIVPROC)wglGetProcAddress("glGetVertexAttribiv");
+ check_glerror(); 
+   winError=GetLastError();
+  Assert(!winError);
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
   glFrontFace(GL_CW);
@@ -633,6 +636,7 @@ void push_to_screen_opengl(PictureBuffer screen,HDC DeviceContext)
 	glFlush();
 	swap_interval(1);
 	SwapBuffers(DeviceContext);
+	check_glerror();
 }
 /*
 #define init_platform_struct_func(name) platform_struct->name=&name;

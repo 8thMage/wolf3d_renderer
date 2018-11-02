@@ -37,8 +37,12 @@ struct RC_Triangle
 };
 struct Render_triangle
 {
-	Vec3 vrts[3];
-	Vec3 normals[3];
+	Vec3 vrt0;
+	Vec3 normal0;
+	Vec3 vrt1;
+	Vec3 normal1;
+	Vec3 vrt2;
+	Vec3 normal2;
 };
 struct RC_Triangle_normals
 {
@@ -61,4 +65,5 @@ struct RC_start_tri_arr
 {
 	Render_tag tag;
 	int count;
+	unsigned int* vbo;
 };
